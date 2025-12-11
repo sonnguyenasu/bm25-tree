@@ -1,0 +1,7 @@
+data/*
+*.tsv
+bm25-search
+*.bin
+*.json
+*.npy
+*.ids
