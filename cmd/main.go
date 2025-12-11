@@ -177,15 +177,19 @@ func main() {
 }
 
 type AnalyzedQuery struct {
-	ID    string   `json:"id"`
-	Text  string   `json:"text"`
-	Terms []string `json:"terms"`
+	ID             string   `json:"id"`
+	Text           string   `json:"text"`
+	Terms          []string `json:"terms"`
+	OriginalLength int      // Number of real terms before padding
 }
 
 // normalizeQueryTerms pads or truncates the query terms to a fixed length
-func normalizeQueryTerms(terms []string, targetLength int) []string {
+// Returns: (paddedTerms, originalLength)
+// Note: Padding words should NOT be used for scoring, only for PIR privacy
+func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
+	originalLen := len(terms)
 	if targetLength <= 0 {
-		return terms
+		return terms, originalLen
 	}
 	
 	normalized := make([]string, targetLength)
@@ -193,16 +197,18 @@ func normalizeQueryTerms(terms []string, targetLength int) []string {
 	if len(terms) >= targetLength {
 		// Truncate if too many terms
 		copy(normalized, terms[:targetLength])
+		return normalized, targetLength
 	} else {
 		// Copy existing terms
 		copy(normalized, terms)
-		// Pad with dummy words
+		// Pad with a word from vocabulary (for PIR privacy)
+		// Note: "what" has low IDF but will still affect scores!
+		// TODO: Use a special padding token with no postings
 		for i := len(terms); i < targetLength; i++ {
 			normalized[i] = "what"
 		}
+		return normalized, originalLen
 	}
-	
-	return normalized
 }
 
 func processAnalyzedQueries(
@@ -293,8 +299,17 @@ func processAnalyzedQueries(
 			fmt.Printf("Processing query %d: %s\n", queryCount, query.Text)
 		}
 
-		// Normalize query terms to fixed length
-		query.Terms = normalizeQueryTerms(query.Terms, queryWords)
+		// Normalize query terms to fixed length (for PIR privacy)
+		// But track original length so padding doesn't affect scores
+		query.Terms, query.OriginalLength = normalizeQueryTerms(query.Terms, queryWords)
+		realTerms := query.Terms[:query.OriginalLength] // Terms to use for actual scoring
+		
+		if bm25.Debug || true {
+			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
+			if len(query.Terms) > query.OriginalLength {
+				fmt.Printf("  Padded terms  (%d): %v\n", len(query.Terms), query.Terms)
+			}
+		}
 
 		// Debug: check how many query terms exist in the Stage-2 vocab (precomputed)
 		matched := 0
@@ -311,10 +326,10 @@ func processAnalyzedQueries(
 			fmt.Printf("  Total matched terms: %d/%d\n", matched, len(query.Terms))
 		}
 
-		// Round 1: Beam search
+		// Round 1: Beam search (use only real terms, not padding)
 		// time the runtime
 		start := time.Now()
-		leafNodes := bm25.Round1BeamPrecomputed(layout, query.Terms, L, stage1DB)
+		leafNodes := bm25.Round1BeamPrecomputed(layout, realTerms, L, stage1DB)
 		elapsed := time.Since(start)
 		fmt.Printf("Round 1, took %s\n", elapsed)
 
@@ -334,9 +349,9 @@ func processAnalyzedQueries(
 			// Skipping Stage2: no hits
 			hitSubs = nil
 		} else {
-			// record runtime
+			// record runtime (use only real terms, not padding)
 			timeStart := time.Now()
-			hitSubs = bm25.Round2BMWPrecomputed(layout, leafNodes, query.Terms, s, kCandidates, stage2DB)
+			hitSubs = bm25.Round2BMWPrecomputed(layout, leafNodes, realTerms, s, kCandidates, stage2DB)
 			timeElapsed := time.Since(timeStart)
 			fmt.Printf("Round 2, took %s\n", timeElapsed)
 			// If requested, save hits for this query
