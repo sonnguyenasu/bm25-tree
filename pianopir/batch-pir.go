@@ -167,13 +167,82 @@ func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 
 /// TODO: optimize for multiple batch
 
+// Replace the Query function in batch-pir.go
+
+// func (p *SimpleBatchPianoPIR) Query(idx []uint32) ([][]byte, error) {
+//     // 1. USE BATCH SIZE, NOT PARTITION NUM
+//     // The server is configured for BatchSize (1024), so we must iterate by that.
+//     batchSize := int(p.config.BatchSize)
+//     totalQueries := len(idx)
+
+//     // 2. CEILING DIVISION FORMULA
+//     // (N + B - 1) / B ensures we calculate enough batches to cover the remainder.
+//     numBatches := (totalQueries + batchSize - 1) / batchSize
+
+//     // Pre-allocate results slice
+//     allResults := make([][]byte, 0, totalQueries)
+
+//     for i := 0; i < numBatches; i++ {
+//         start := i * batchSize
+//         end := start + batchSize
+
+//         // Clamp the end index for the last partial batch
+//         if end > totalQueries {
+//             end = totalQueries
+//         }
+
+//         // Get the actual user queries for this iteration
+//         currentBatch := idx[start:end]
+//         realBatchLen := len(currentBatch)
+
+//         // 3. EXPLICIT PADDING (CRITICAL FIX)
+//         // If the batch is smaller than 1024, we must pad it.
+//         // Sending partial batches causes checksum mismatches.
+//         // Padding with 0s causes hash bucket overflows.
+//         if realBatchLen < batchSize {
+//             // Allocate a full-sized batch buffer
+//             paddedBatch := make([]uint32, batchSize)
+//             copy(paddedBatch, currentBatch)
+
+//             // Fill the empty slots with RANDOM indices.
+//             // We use random valid indices to distribute load evenly across hash buckets.
+//             // Using 0 here would crash the server's Cuckoo hashing.
+//             for k := realBatchLen; k < batchSize; k++ {
+//                 // Use a random index within the database range
+//                 paddedBatch[k] = uint32(rand.Intn(int(p.config.DBSize)))
+//             }
+            
+//             // Swap the slice to use the padded version
+//             currentBatch = paddedBatch
+//         }
+
+//         // 4. PERFORM QUERY
+//         // This now always sends exactly 1024 items.
+//         batchResults, err := p.client.BatchQuery(currentBatch)
+//         if err != nil {
+//             return nil, fmt.Errorf("batch query failed at batch %d: %v", i, err)
+//         }
+
+//         // 5. STRIP PADDING
+//         // We only append the results corresponding to the real user queries.
+//         if len(batchResults) >= realBatchLen {
+//             allResults = append(allResults, batchResults[:realBatchLen]...)
+//         } else {
+//             // Safety fallback
+//             allResults = append(allResults, batchResults...)
+//         }
+//     }
+
+//     return allResults, nil
+// }
+
 func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 
 	// first identify in average how many queries in each partition we need to make
 
 	// this is different from the default
-	queryNumToMake := len(idx) / int(p.config.PartitionNum)
-	queryNumToMake++
+	// queryNumToMake := len(idx) / int(p.config.PartitionNum)
+	queryNumToMake := (len(idx) + int(p.config.PartitionNum) - 1) / int(p.config.PartitionNum)
 	// first arrange the queries into the partitions
 	partitionQueries := make([][]uint64, p.config.PartitionNum)
 	for i := 0; i < len(idx); i++ {

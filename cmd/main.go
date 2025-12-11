@@ -198,7 +198,7 @@ func normalizeQueryTerms(terms []string, targetLength int) []string {
 		copy(normalized, terms)
 		// Pad with dummy words
 		for i := len(terms); i < targetLength; i++ {
-			normalized[i] = "dummy"
+			normalized[i] = "what"
 		}
 	}
 	

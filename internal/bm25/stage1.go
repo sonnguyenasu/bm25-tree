@@ -278,14 +278,16 @@ func (db *Stage1PIRDB) readRowDirectByte(rowIdx int) []byte {
 // readRowDirectUint64 reads a row directly from uint64-format mmap
 func (db *Stage1PIRDB) readRowDirectUint64(rowIdx uint64) []uint64 {
 	if db.DataUint64 == nil {
-		return make([]uint64, db.R)
+		return make([]uint64, db.R/8)
 	}
-	start := rowIdx * uint64(db.R)
-	end := start + uint64(db.R)
+	// Each row is R bytes = R/8 uint64 elements
+	entrySizeUint64 := uint64(db.R) / 8
+	start := rowIdx * entrySizeUint64
+	end := start + entrySizeUint64
 	if end <= uint64(len(db.DataUint64)) {
-		row := make([]uint64, db.R)
+		row := make([]uint64, entrySizeUint64)
 		copy(row, db.DataUint64[start:end])
 		return row
 	}
-	return make([]uint64, db.R)
+	return make([]uint64, entrySizeUint64)
 }
