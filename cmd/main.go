@@ -164,7 +164,7 @@ func main() {
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
 	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *embedDim, *precompute, batchSize)
+		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "block_permutations.json", *embedDim, *precompute, batchSize)
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {

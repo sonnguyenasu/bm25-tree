@@ -2,6 +2,7 @@ package bm25
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -33,6 +34,9 @@ type Stage3Reranker struct {
 	pir       *pianopir.SimpleBatchPianoPIR
 	pirUsable bool // true if PIR is initialized and can be used
 
+	// Blocking & Permutation Support
+	BlockPermutation []int // Maps LogicalBlockID -> PhysicalBlockID
+
 	mu sync.RWMutex
 }
 
@@ -40,20 +44,22 @@ type Stage3Reranker struct {
 // docEmbedPath: path to document embeddings (mmap npy format)
 // docIDMapPath: path to document ID mapping file (one doc ID per line)
 // queryEmbedPath: path to query embeddings (npy format, loaded fully in memory)
+// permutationPath: path to block permutation JSON map (optional)
 // enablePIR: if true, initialize PIR for private embedding access
 // batchSize: PIR batch size
 func NewStage3Reranker(
 	docEmbedPath, docIDMapPath, queryEmbedPath string,
+	permutationPath string, // <--- New parameter
 	embedDim int,
 	enablePIR bool,
 	batchSize uint64,
 ) (*Stage3Reranker, error) {
 	sr := &Stage3Reranker{
-		EmbedDim:   embedDim,
+		EmbedDim:     embedDim,
 		BytesPerElem: 0, // will be set from NPY header
-		QueryIDMap: make(map[string]int),
-		pir:        nil,
-		pirUsable:  false,
+		QueryIDMap:   make(map[string]int),
+		pir:          nil,
+		pirUsable:    false,
 	}
 
 	// Load document embeddings (mmap)
@@ -160,17 +166,41 @@ func NewStage3Reranker(
 	sr.QueryEmbeddings = parseQueryEmbeddings(queryData, numQueries, queryEmbedDim, queryBytesPerElem)
 	fmt.Printf("Stage3 Reranker: loaded %d query embeddings (dim=%d, bytes/elem=%d)\n", len(sr.QueryEmbeddings), queryEmbedDim, queryBytesPerElem)
 
+	// --- NEW: Load Block Permutation Map ---
+	if permutationPath != "" {
+		permData, err := os.ReadFile(permutationPath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading permutation map: %v", err)
+		}
+		if err := json.Unmarshal(permData, &sr.BlockPermutation); err != nil {
+			return nil, fmt.Errorf("error parsing permutation map: %v", err)
+		}
+		fmt.Printf("Stage3 Reranker: loaded block permutation map with %d entries\n", len(sr.BlockPermutation))
+	}
+
 	// Initialize PIR for document embeddings if enabled
 	if enablePIR {
-		// Convert embeddings to uint64 array for PIR
-		// Each embedding is embedDim * bytesPerElem bytes
-		entrySizeBytes := uint64(npyEmbedDim * bytesPerElem)
-		dbSize := uint64(numDocs)
+		// --- BLOCKING & PADDING LOGIC ---
+		blockSize := 8 // Treat 8 documents as 1 block
 
-		// For PIR, we need to pack embeddings into uint64 words
-		// entrySizeBytes might be large (e.g., 192*4 = 768 bytes or 192*8 = 1536 bytes)
-		// Convert to uint64 array
+		// Calculate DB dimensions in terms of BLOCKS
+		dbSize := uint64((numDocs + blockSize - 1) / blockSize)
+		entrySizeBytes := uint64(npyEmbedDim * bytesPerElem * blockSize)
+
+		// Convert raw bytes to uint64 array for PIR
 		embedUint64 := convertBytesToUint64(sr.docEmbedMmap)
+
+		// PADDING: Ensure the array is exactly the size PIR expects.
+		// PIR expects (dbSize * entrySizeInUint64s)
+		dbEntrySizeUint64 := entrySizeBytes / 8
+		expectedLen := int(dbSize * dbEntrySizeUint64)
+
+		if len(embedUint64) < expectedLen {
+			padAmount := expectedLen - len(embedUint64)
+			fmt.Printf("Stage3 PIR: Padding embedding data with %d zeros to match block alignment\n", padAmount)
+			padding := make([]uint64, padAmount)
+			embedUint64 = append(embedUint64, padding...)
+		}
 
 		sr.pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
@@ -179,7 +209,7 @@ func NewStage3Reranker(
 			embedUint64,
 			20, // FailureProbLog2
 		)
-		fmt.Printf("Stage3 PIR: initialized with DBSize=%d, EntrySize=%d bytes, BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
+		fmt.Printf("Stage3 PIR (Blocking Mode): initialized with DBSize=%d blocks, EntrySize=%d bytes (8 docs/block), BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
 		sr.pir.Preprocessing()
 		fmt.Printf("Stage3 PIR: preprocessing complete\n")
 		sr.pirUsable = true
@@ -261,7 +291,6 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 
 	// If PIR is not available or disabled, use direct reads
 	if !sr.pirUsable || sr.pir == nil {
-		// Debug: Print which path we're using
 		if len(docIndices) > 0 && docIndices[0] == 7542593 {
 			Debugf("DEBUG: GetDocEmbeddingBatch using DIRECT READ path (pirUsable=%v, pir==nil=%v)\n", sr.pirUsable, sr.pir == nil)
 		}
@@ -271,13 +300,33 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 		return result
 	}
 
-	// Use PIR for batch query
-	rowIndices := make([]uint64, len(docIndices))
-	for i, idx := range docIndices {
-		rowIndices[i] = uint64(idx)
+	// --- BLOCKING & SHUFFLING LOGIC START ---
+	blockSize := 8
+	uniqueBlocks := make(map[uint64]bool)
+
+	// 1. Identify which PHYSICAL blocks we need
+	for _, idx := range docIndices {
+		logicalBlockID := idx / blockSize
+
+		// Map Logical -> Physical (Shuffled)
+		physicalBlockID := logicalBlockID
+		if len(sr.BlockPermutation) > 0 {
+			if logicalBlockID < len(sr.BlockPermutation) {
+				physicalBlockID = sr.BlockPermutation[logicalBlockID]
+			}
+		}
+
+		uniqueBlocks[uint64(physicalBlockID)] = true
 	}
 
-	responses, err := sr.pir.Query(rowIndices)
+	// 2. Prepare block query
+	queryBlocks := make([]uint64, 0, len(uniqueBlocks))
+	for bid := range uniqueBlocks {
+		queryBlocks = append(queryBlocks, bid)
+	}
+
+	// 3. Execute Batch Query
+	responses, err := sr.pir.Query(queryBlocks)
 	if err != nil {
 		fmt.Printf("Stage3 PIR batch query error: %v, falling back to direct read\n", err)
 		for _, idx := range docIndices {
@@ -286,24 +335,46 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 		return result
 	}
 
-	// Convert responses to embeddings
-	for i, idx := range docIndices {
-		rowWords := responses[i]
-		rowBytes := convertUint64ToBytes(rowWords)
-		emb := make([]float32, sr.EmbedDim)
-		for j := 0; j < sr.EmbedDim; j++ {
-			offset := j * sr.BytesPerElem
-			if offset+sr.BytesPerElem <= len(rowBytes) {
-				switch sr.BytesPerElem {
-				case 4:
-					emb[j] = math.Float32frombits(binary.LittleEndian.Uint32(rowBytes[offset : offset+4]))
-				case 8:
-					emb[j] = float32(math.Float64frombits(binary.LittleEndian.Uint64(rowBytes[offset : offset+8])))
+	// 4. Unpack responses into map: PhysicalBlockID -> Data
+	blockData := make(map[uint64][]byte)
+	for i, bid := range queryBlocks {
+		blockData[bid] = convertUint64ToBytes(responses[i])
+	}
+
+	// 5. Extract specific embeddings from retrieved blocks
+	for _, docIdx := range docIndices {
+		logicalBlockID := docIdx / blockSize
+		offsetInBlock := (docIdx % blockSize)
+
+		// Re-calculate Physical ID to look up in blockData
+		physicalBlockID := logicalBlockID
+		if len(sr.BlockPermutation) > 0 {
+			physicalBlockID = sr.BlockPermutation[logicalBlockID]
+		}
+
+		if rawBlock, ok := blockData[uint64(physicalBlockID)]; ok {
+			// Calculate byte offsets for this specific embedding within the block
+			embSize := sr.EmbedDim * sr.BytesPerElem
+			start := offsetInBlock * embSize
+			end := start + embSize
+
+			if end <= len(rawBlock) {
+				embBytes := rawBlock[start:end]
+				// Convert bytes to float32
+				emb := make([]float32, sr.EmbedDim)
+				for j := 0; j < sr.EmbedDim; j++ {
+					bOffset := j * sr.BytesPerElem
+					if sr.BytesPerElem == 4 {
+						emb[j] = math.Float32frombits(binary.LittleEndian.Uint32(embBytes[bOffset : bOffset+4]))
+					} else {
+						emb[j] = float32(math.Float64frombits(binary.LittleEndian.Uint64(embBytes[bOffset : bOffset+8])))
+					}
 				}
+				result[docIdx] = emb
 			}
 		}
-		result[idx] = emb
 	}
+	// --- BLOCKING & SHUFFLING LOGIC END ---
 
 	return result
 }
@@ -324,7 +395,7 @@ func (sr *Stage3Reranker) getDocEmbeddingDirect(docIdx int) []float32 {
 	}
 	// Debug: Check for specific NaN-producing index
 	if docIdx == 7542593 {
-		Debugf("DEBUG: getDocEmbeddingDirect(idx=%d): first 5 values = [%.6f %.6f %.6f %.6f %.6f]\n", 
+		Debugf("DEBUG: getDocEmbeddingDirect(idx=%d): first 5 values = [%.6f %.6f %.6f %.6f %.6f]\n",
 			docIdx, emb[0], emb[1], emb[2], emb[3], emb[4])
 		hasNaN := false
 		for _, v := range emb {
@@ -422,7 +493,7 @@ func (sr *Stage3Reranker) Rerank(
 				})
 			} else {
 				// No embedding found for this doc - skip it
-				fmt.Printf("WARNING: No embedding found for external ID %s (BM25 internal %d)\n", externalID, bm25InternalID)
+				// fmt.Printf("WARNING: No embedding found for external ID %s (BM25 internal %d)\n", externalID, bm25InternalID)
 			}
 		}
 	}
@@ -436,7 +507,7 @@ func (sr *Stage3Reranker) Rerank(
 		goldFoundInPool := false
 		for _, cand := range candidates {
 			if goldDocIDs[cand.externalID] {
-				Debugf("DEBUG Stage3: Gold doc %s (BM25 internal=%d, emb idx=%d) FOUND in candidate pool\n", 
+				Debugf("DEBUG Stage3: Gold doc %s (BM25 internal=%d, emb idx=%d) FOUND in candidate pool\n",
 					cand.externalID, cand.bm25InternalID, cand.embeddingIdx)
 				goldFoundInPool = true
 				break
@@ -459,7 +530,7 @@ func (sr *Stage3Reranker) Rerank(
 		for _, cand := range candidates {
 			if goldDocIDs[cand.externalID] {
 				if emb, ok := embeddings[cand.embeddingIdx]; ok && len(emb) >= 5 {
-					Debugf("DEBUG Stage3: Gold doc embedding (first 5): %.4f %.4f %.4f %.4f %.4f\n", 
+					Debugf("DEBUG Stage3: Gold doc embedding (first 5): %.4f %.4f %.4f %.4f %.4f\n",
 						emb[0], emb[1], emb[2], emb[3], emb[4])
 				}
 				break
