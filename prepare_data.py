@@ -17,7 +17,7 @@ Notes:
   - You must provide a vocabulary file (--vocab) with one token per line OR
     supply --terms-from-index to try to enumerate terms from the Lucene index
     (that option may be slower / depend on your pyserini version).
-  - Provide an existing layout_with_stats.json (from your preprocessing step)
+  - Provide an existing data/layout_with_stats.json (from your preprocessing step)
     if you have precomputed min_dl per node; otherwise the script will use avgdl.
 """
 
@@ -131,7 +131,7 @@ def build(args):
     layout = Layout(N=N, B=B, r=r)
     int_avgdl = int(avgdl)
 
-    # optionally load precomputed layout_with_stats.json to get min_dl_map
+    # optionally load precomputed data/layout_with_stats.json to get min_dl_map
     if args.layout_stats:
         print(f"Loading layout stats from: {args.layout_stats}")
         with open(args.layout_stats, 'r', encoding='utf-8') as f:
@@ -309,7 +309,7 @@ if __name__ == '__main__':
     parser.add_argument('--index', required=True, help="Path to Lucene/Pyserini index")
     parser.add_argument('--vocab', required=False, help="Path to vocabulary file (one term per line). If omitted, set --terms-from-index")
     parser.add_argument('--terms-from-index', action='store_true', help="Enumerate terms from index (may be slow / pyserini dependent)")
-    parser.add_argument('--layout-stats', required=False, help="Path to layout_with_stats.json (optional) to get min_dl_map")
+    parser.add_argument('--layout-stats', required=False, help="Path to data/layout_with_stats.json (optional) to get min_dl_map")
     parser.add_argument('--out-prefix', default='stage1', help="Output prefix; files written: <prefix>_data.bin <prefix>_idmap.bin <prefix>_vocab.json")
     parser.add_argument('--B', type=int, default=32, help="Block size (default: 32)")
     parser.add_argument('--r', type=int, default=128, help="Fanout r (default: 128)")

@@ -113,7 +113,7 @@ func main() {
 	var layout *bm25.LayoutWithStats
 	if *precompute {
 		// Load from file
-		layout, err = loadLayout("./layout_with_stats.json")
+		layout, err = loadLayout("./data/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
@@ -164,7 +164,7 @@ func main() {
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
 	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "block_permutations.json", *embedDim, enablePIR, uint64(32))
+		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "data/block_permutations.json", *embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {

@@ -5,5 +5,5 @@ bm25-search
 *.json
 *.npy
 *.ids
-pca_768_to_192.faiss
 *.txt
+*.zip

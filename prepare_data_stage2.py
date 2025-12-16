@@ -230,7 +230,7 @@ def build_stage2(
     num_leaves = math.ceil(N / B)
     # layout = LayoutWithStats(N=N, B=B, r=r)
     # layout.precompute_stats(adp)
-    with open('layout_with_stats.json', 'r') as f:
+    with open('data/layout_with_stats.json', 'r') as f:
             data = json.load(f)
     layout = LayoutWithStats(N=data['N'], B=data['B'], r=data['r'], min_dl_map=data['min_dl_map'])
     height = layout.height()

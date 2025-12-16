@@ -20,8 +20,9 @@ This is a Go implementation of BM25 ranking for the MSMarco dataset, converted f
 .
 ├── cmd/            # Command-line applications
 ├── internal/       # Private application and library code
-│   └── bm25/      # BM25 implementation
+│   └── bm25/      # BM25 tree implementation
 ├── go.mod         # Go module definition
+├── run_go.sh.     # build and run script 
 └── README.md      # Project documentation
 ```
 
@@ -29,6 +30,7 @@ This is a Go implementation of BM25 ranking for the MSMarco dataset, converted f
 
 1. Clone the repository
 2. Navigate to the project directory
+3. Download the data folder at [Google Drive](https://drive.google.com/file/d/1hqjyfew5o6QWGynvUshe44GvPLyX1NwH/view?usp=sharing)
 3. Initialize the Go module:
    ```bash
    go mod init bm25-msmarco

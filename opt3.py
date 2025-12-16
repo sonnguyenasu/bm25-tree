@@ -724,7 +724,7 @@ def experiment(args):
         layout.precompute_stats(adp)
 
         # save layout to storage
-        with open('layout_with_stats.json', 'w') as f:
+        with open('data/layout_with_stats.json', 'w') as f:
             json.dump({
                 'N': layout.N,
                 'B': layout.B,
@@ -733,15 +733,15 @@ def experiment(args):
             }, f, indent=2)
     else:
         #load from storage:
-        print("Loading precomputed layout from layout_with_stats.json...")
-        with open('layout_with_stats.json', 'r') as f:
+        print("Loading precomputed layout from data/layout_with_stats.json...")
+        with open('data/layout_with_stats.json', 'r') as f:
             data = json.load(f)
         
         # --- FIX: Check for consistency ---
         if data['B'] != args.B or data['r'] != args.r:
             print(f"Warning: Layout file parameters (B={data['B']}, r={data['r']}) "
                   f"do not match command line (B={args.B}, r={args.r}).")
-            print("This may cause incorrect results. Recommend deleting layout_with_stats.json and re-running.")
+            print("This may cause incorrect results. Recommend deleting data/layout_with_stats.json and re-running.")
             print(f"Layout file r={data['r']}, args.r={args.r}")
 
         layout = LayoutWithStats(N=data['N'], B=data['B'], r=data['r'])

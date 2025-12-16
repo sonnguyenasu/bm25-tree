@@ -1,5 +1,5 @@
 #!/bin/bash
-# python prepare_data.py --index msmarco_reordered --terms-from-index --layout-stats layout_with_stats.json
+# python prepare_data.py --index msmarco_reordered --terms-from-index --layout-stats data/layout_with_stats.json
 
 # python prepare_data_stage2.py --index msmarco_reordered --vocab stage1_vocab.json --out-dir stage2 --r 128
 
