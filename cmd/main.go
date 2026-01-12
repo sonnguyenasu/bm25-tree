@@ -1,4 +1,4 @@
-package main
+package run_tree
 
 import (
 	"bufio"
@@ -13,7 +13,7 @@ import (
 	"bm25-msmarco/internal/bm25"
 )
 
-func main() {
+func run_tree() {
 	// Parse command line arguments
 	index := flag.String("index", "", "Path to Lucene index")
 	queries := flag.String("queries", "", "Path to queries.tsv file")
@@ -191,9 +191,9 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	if targetLength <= 0 {
 		return terms, originalLen
 	}
-	
+
 	normalized := make([]string, targetLength)
-	
+
 	if len(terms) >= targetLength {
 		// Truncate if too many terms
 		copy(normalized, terms[:targetLength])
@@ -303,7 +303,7 @@ func processAnalyzedQueries(
 		// But track original length so padding doesn't affect scores
 		query.Terms, query.OriginalLength = normalizeQueryTerms(query.Terms, queryWords)
 		realTerms := query.Terms[:query.OriginalLength] // Terms to use for actual scoring
-		
+
 		if bm25.Debug || true {
 			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
 			if len(query.Terms) > query.OriginalLength {
@@ -434,7 +434,7 @@ func processAnalyzedQueries(
 				}
 			}
 			// Get reranked IDs/scores from Stage3
-			
+
 			start = time.Now()
 			docIDs, scores, mrrFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
 			elapsed = time.Since(start)
