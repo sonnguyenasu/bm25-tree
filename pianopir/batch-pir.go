@@ -211,7 +211,7 @@ func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 //                 // Use a random index within the database range
 //                 paddedBatch[k] = uint32(rand.Intn(int(p.config.DBSize)))
 //             }
-            
+
 //             // Swap the slice to use the padded version
 //             currentBatch = paddedBatch
 //         }

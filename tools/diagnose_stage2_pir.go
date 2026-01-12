@@ -44,7 +44,7 @@ func main() {
 	// Test query from the problematic example: query 1048585
 	// Query terms: ["what", "paula", "deen", "brother"]
 	testTerms := []string{"what", "paula", "deen", "brother"}
-	
+
 	// Gold doc 2465873 is in leaf node that contains this doc range
 	// With B=32, doc 2465872-2465904 would be in leaf node 77058
 	// Test with some nodes around that range
@@ -114,37 +114,37 @@ func main() {
 	} else {
 		fmt.Println("❌ Results differ! PIR is producing incorrect results.")
 		fmt.Println()
-		
+
 		// Additional diagnostic: check raw row data
 		fmt.Println("=== RAW DATA DIAGNOSTIC ===")
-		
+
 		// Find a specific term-node pair to inspect
 		term := "contain"
 		node := 0
-		
+
 		if termID, ok := plaintext.Vocab[term]; ok {
 			if termMap, ok := plaintext.LookupTable[termID]; ok {
 				if rowIdx, ok := termMap[node]; ok {
 					fmt.Printf("Term '%s' (ID=%d), Node=%d → Row index=%d\n", term, termID, node, rowIdx)
 					fmt.Println()
-					
+
 					// Read raw bytes from plaintext DataMmap
 					start := rowIdx * plaintext.R
 					end := start + plaintext.R
 					if end <= len(plaintext.DataMmap) {
 						rawBytes := plaintext.DataMmap[start:end]
 						fmt.Printf("Raw bytes from DataMmap[%d:%d]: %v\n", start, end, rawBytes)
-						
+
 						// Read from PIR DataUint64
 						if rowIdx < len(pirMode.DataUint64) {
 							word := pirMode.DataUint64[rowIdx]
 							fmt.Printf("PIR DataUint64[%d]: 0x%016x\n", rowIdx, word)
-							
+
 							// Unpack word back to bytes
 							unpackedBytes := make([]byte, 8)
 							binary.LittleEndian.PutUint64(unpackedBytes, word)
 							fmt.Printf("Unpacked bytes from PIR: %v (first %d bytes)\n", unpackedBytes[:plaintext.R], plaintext.R)
-							
+
 							// Compare
 							bytesMatch := true
 							for j := 0; j < plaintext.R; j++ {
@@ -153,7 +153,7 @@ func main() {
 									break
 								}
 							}
-							
+
 							if bytesMatch {
 								fmt.Println("✅ Raw bytes MATCH between DataMmap and DataUint64")
 							} else {
@@ -162,7 +162,7 @@ func main() {
 						}
 					}
 					fmt.Println()
-					
+
 					// Test PIR Query for this specific row
 					fmt.Println("Testing PIR Query() for this row...")
 					pirResponse, err := pirMode.QueryPIR([]uint64{uint64(rowIdx)})
@@ -173,11 +173,11 @@ func main() {
 						if len(pirResponse) > 0 && len(pirResponse[0]) > 0 {
 							respWord := pirResponse[0][0]
 							fmt.Printf("PIR response word: 0x%016x\n", respWord)
-							
+
 							respBytes := make([]byte, 8)
 							binary.LittleEndian.PutUint64(respBytes, respWord)
 							fmt.Printf("PIR response bytes: %v (first %d bytes)\n", respBytes[:plaintext.R], plaintext.R)
-							
+
 							// Compare with original
 							if respWord == pirMode.DataUint64[rowIdx] {
 								fmt.Println("✅ PIR Query returned CORRECT data (matches DataUint64)")

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"bm25-msmarco/internal/bm25"
+	"fmt"
 )
 
 func main() {

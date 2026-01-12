@@ -333,7 +333,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 
 		// Convert uint64 word(s) back to bytes
 		rowBytes := convertUint64ToBytes(rowWords)
-		
+
 		// Debug: Compare PIR response with direct read for first few requests
 		if Debug && i < 3 {
 			start := int(req.rowIdx) * pre.R
@@ -345,7 +345,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 			} else {
 				directBytes = make([]byte, pre.R)
 			}
-			
+
 			pirMatch := true
 			for j := 0; j < pre.R; j++ {
 				if rowBytes[j] != directBytes[j] {
@@ -360,7 +360,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 				Debugf("Stage2 PIR OK: termID=%d, nodeID=%d, rowIdx=%d, bytes match", req.termID, req.nodeID, req.rowIdx)
 			}
 		}
-		
+
 		// Use first pre.R bytes (each is one uint8 sub-block score)
 		for j := 0; j < pre.R && j < len(rowBytes); j++ {
 			acc[req.nodeID][j] += int(rowBytes[j])

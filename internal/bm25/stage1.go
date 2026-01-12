@@ -217,7 +217,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 
 		// Convert uint64 to byte array
 		row := convertUint64ToBytes(response)
-		
+
 		// Debug: Compare PIR response with direct read for first few requests
 		if Debug && i < 3 {
 			directRow := db.readRowDirectByte(int(req.rowIdx))
@@ -235,7 +235,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 				Debugf("Stage1 PIR OK: termID=%d, nodeID=%d, rowIdx=%d, first 10 bytes match", req.termID, req.nodeID, req.rowIdx)
 			}
 		}
-		
+
 		result[req.termID][req.nodeID] = row
 	}
 

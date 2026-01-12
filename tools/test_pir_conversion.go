@@ -19,7 +19,7 @@ func main() {
 		"data/stage1_data.bin",
 		"data/stage1/stage1_idmap.bin",
 		"data/stage1_vocab.json",
-		128, // r
+		128,   // r
 		false, // Don't enable PIR to avoid preprocessing
 		1024,
 	)
@@ -35,15 +35,15 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("--- Stage2 Test ---")
-	
+
 	// Test Stage2
 	stage2DB, err := bm25.NewStage2PrecomputedWithPIR(
 		"data/stage2/data.bin",
 		"data/stage2/idmap.bin",
 		"data/stage1_vocab.json",
-		32, // B
-		8,  // s
-		10.0, // scale
+		32,    // B
+		8,     // s
+		10.0,  // scale
 		false, // Don't enable PIR
 		1024,
 	)
@@ -62,31 +62,31 @@ func testStage1Conversion(db *bm25.Stage1PIRDB) {
 	// Test random rows
 	numTests := 10
 	numRows := len(db.DataMmap) / db.R
-	
+
 	fmt.Printf("Testing %d random rows...\n", numTests)
-	
+
 	allMatch := true
 	for i := 0; i < numTests; i++ {
 		rowIdx := rand.Intn(numRows)
-		
+
 		// Read original bytes
 		start := rowIdx * db.R
 		end := start + db.R
 		originalBytes := make([]byte, db.R)
 		copy(originalBytes, db.DataMmap[start:end])
-		
+
 		// Convert to uint64 (simulating PIR storage)
 		uint64Words := make([]uint64, db.R)
 		for j := 0; j < db.R; j++ {
 			uint64Words[j] = uint64(originalBytes[j])
 		}
-		
+
 		// Convert back to bytes (simulating PIR retrieval)
 		convertedBytes := make([]byte, db.R*8)
 		for j, word := range uint64Words {
 			binary.LittleEndian.PutUint64(convertedBytes[j*8:(j+1)*8], word)
 		}
-		
+
 		// Compare first R bytes
 		match := true
 		for j := 0; j < db.R; j++ {
@@ -95,7 +95,7 @@ func testStage1Conversion(db *bm25.Stage1PIRDB) {
 				break
 			}
 		}
-		
+
 		if !match {
 			fmt.Printf("  ❌ Row %d: MISMATCH\n", rowIdx)
 			fmt.Printf("     Original: %v...\n", originalBytes[:min(10, len(originalBytes))])
@@ -105,7 +105,7 @@ func testStage1Conversion(db *bm25.Stage1PIRDB) {
 			fmt.Printf("  ✅ Row %d: OK\n", rowIdx)
 		}
 	}
-	
+
 	if allMatch {
 		fmt.Println("✅ All Stage1 conversions correct!")
 	} else {
@@ -117,28 +117,28 @@ func testStage2Conversion(db *bm25.Stage2Precomputed) {
 	// Test random rows
 	numTests := 10
 	numRows := len(db.DataMmap) / db.R
-	
+
 	fmt.Printf("Testing %d random rows...\n", numTests)
-	
+
 	allMatch := true
 	for i := 0; i < numTests; i++ {
 		rowIdx := rand.Intn(numRows)
-		
+
 		// Read original bytes
 		start := rowIdx * db.R
 		end := start + db.R
 		originalBytes := make([]byte, db.R)
 		copy(originalBytes, db.DataMmap[start:end])
-		
+
 		// Convert to uint64 (pack into one word, simulating PIR storage)
 		tmp := make([]byte, 8)
 		copy(tmp, originalBytes)
 		word := binary.LittleEndian.Uint64(tmp)
-		
+
 		// Convert back to bytes (simulating PIR retrieval)
 		convertedBytes := make([]byte, 8)
 		binary.LittleEndian.PutUint64(convertedBytes, word)
-		
+
 		// Compare first R bytes
 		match := true
 		for j := 0; j < db.R; j++ {
@@ -147,7 +147,7 @@ func testStage2Conversion(db *bm25.Stage2Precomputed) {
 				break
 			}
 		}
-		
+
 		if !match {
 			fmt.Printf("  ❌ Row %d: MISMATCH\n", rowIdx)
 			fmt.Printf("     Original: %v\n", originalBytes)
@@ -158,7 +158,7 @@ func testStage2Conversion(db *bm25.Stage2Precomputed) {
 			fmt.Printf("  ✅ Row %d: OK (bytes: %v)\n", rowIdx, originalBytes)
 		}
 	}
-	
+
 	if allMatch {
 		fmt.Println("✅ All Stage2 conversions correct!")
 	} else {
