@@ -13,7 +13,7 @@ import (
 	"bm25-msmarco/internal/bm25"
 )
 
-func run_tree() {
+func Runtree() {
 	// Parse command line arguments
 	index := flag.String("index", "", "Path to Lucene index")
 	queries := flag.String("queries", "", "Path to queries.tsv file")
