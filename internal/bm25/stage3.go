@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"pianopir"
+	"github.com/dkblackley/bins-go/pianopir"
 )
 
 // Stage3Reranker performs dense reranking using query/document embeddings
@@ -187,27 +187,30 @@ func NewStage3Reranker(
 		dbSize := uint64((numDocs + blockSize - 1) / blockSize)
 		entrySizeBytes := uint64(npyEmbedDim * bytesPerElem * blockSize)
 
+		dbEntrySizeUint64 := entrySizeBytes / 8
+
 		// Convert raw bytes to uint64 array for PIR
-		embedUint64 := convertBytesToUint64(sr.docEmbedMmap)
+		embedUint64 := convertBytesToUint64(sr.docEmbedMmap, dbEntrySizeUint64)
 
 		// PADDING: Ensure the array is exactly the size PIR expects.
 		// PIR expects (dbSize * entrySizeInUint64s)
-		dbEntrySizeUint64 := entrySizeBytes / 8
-		expectedLen := int(dbSize * dbEntrySizeUint64)
+		// expectedLen := int(dbSize * dbEntrySizeUint64)
 
-		if len(embedUint64) < expectedLen {
-			padAmount := expectedLen - len(embedUint64)
-			fmt.Printf("Stage3 PIR: Padding embedding data with %d zeros to match block alignment\n", padAmount)
-			padding := make([]uint64, padAmount)
-			embedUint64 = append(embedUint64, padding...)
-		}
+		//if len(embedUint64) < int(dbSize) { // Should just be dbSIze now... TODO: What is this doing? - I might've broke it
+		//	padAmount := int(dbSize) - len(embedUint64)
+		//	fmt.Printf("Stage3 PIR: Padding embedding data with %d zeros to match block alignment\n", padAmount)
+		//	padding := make([]uint64, padAmount)
+		//	embedUint64 = append(embedUint64, padding...)
+		//}
 
 		sr.pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
+			dbEntrySizeUint64,
 			entrySizeBytes,
 			batchSize,
 			embedUint64,
 			20, // FailureProbLog2
+			batchSize,
 		)
 		fmt.Printf("Stage3 PIR (Blocking Mode): initialized with DBSize=%d blocks, EntrySize=%d bytes (8 docs/block), BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
 		sr.pir.Preprocessing()

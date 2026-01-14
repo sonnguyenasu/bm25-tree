@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"pianopir"
+	"github.com/dkblackley/bins-go/pianopir"
 )
 
 // Stage2Precomputed represents the precomputed database for stage 2
@@ -17,7 +17,7 @@ type Stage2Precomputed struct {
 	R           int     // R = B/S
 	Scale       float64 // Scale factor for scores
 	DataMmap    []byte
-	DataUint64  []uint64
+	DataUint64  [][]uint64
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
@@ -125,10 +125,12 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		//fmt.Printf("Stage2 PIR debug: pre.R=%d, len(DataMmap)=%d (rows), len(DataUint64)=%d (words), DBSize=%d\n", pre.R, len(pre.DataMmap)/pre.R, len(pre.DataUint64), dbSize)
 		pre.pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
+			1,
 			dbEntryByteNum, // 8 bytes = 1 uint64 word
 			batchSize,
 			pre.DataUint64,
 			20, // FailureProbLog2
+			batchSize,
 		)
 		fmt.Printf("Stage2 PIR: initialized with DBSize=%d, EntryByteNum=8 (1 uint64 word), BatchSize=%d\n", dbSize, batchSize)
 		pre.pir.Preprocessing()
@@ -378,7 +380,7 @@ func (pre *Stage2Precomputed) readRowDirectUint64(rowIdx uint64) []uint64 {
 	}
 	// Each row occupies exactly 1 uint64 word (since pre.R <= 8)
 	if rowIdx < uint64(len(pre.DataUint64)) {
-		return []uint64{pre.DataUint64[rowIdx]}
+		return pre.DataUint64[rowIdx] // SHould be fine to call directly now(?)
 	}
 	return make([]uint64, 1)
 }

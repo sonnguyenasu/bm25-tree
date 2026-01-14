@@ -7,14 +7,14 @@ import (
 	"os"
 	"sync"
 
-	"pianopir"
+	"github.com/dkblackley/bins-go/pianopir"
 )
 
 // Stage1PIRDB represents the database for stage 1 of the PIR protocol
 type Stage1PIRDB struct {
 	R           int
 	DataMmap    []byte
-	DataUint64  []uint64
+	DataUint64  [][]uint64
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
@@ -107,16 +107,18 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 
 	// Initialize PIR if enabled
 	if enablePIR {
-		db.DataUint64 = convertBytesToUint64(db.DataMmap)
 		// DBSize is number of rows. Each row is r bytes = r/8 uint64 elements
 		entrySizeUint64 := uint64(r) / 8
+		db.DataUint64 = convertBytesToUint64(db.DataMmap, entrySizeUint64)
 		dbSize := uint64(len(db.DataUint64)) / entrySizeUint64
 		db.pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
+			uint64(len(db.DataUint64[0])),
 			uint64(r),
 			batchSize,
 			db.DataUint64,
 			20, // FailureProbLog2
+			batchSize,
 		)
 		fmt.Printf("Stage1 PIR: initialized with DBSize=%d, EntrySize=%d bytes, BatchSize=%d\n", dbSize, r, batchSize)
 		db.pir.Preprocessing()
@@ -265,6 +267,7 @@ func (db *Stage1PIRDB) getScoreDirect(termIDs []int, nodeIDs []int) map[int]map[
 
 // readRowDirectByte reads a row directly from byte-format mmap
 func (db *Stage1PIRDB) readRowDirectByte(rowIdx int) []byte {
+	// Leave this as-is just now
 	start := rowIdx * db.R
 	end := start + db.R
 	if end <= len(db.DataMmap) {
@@ -280,14 +283,17 @@ func (db *Stage1PIRDB) readRowDirectUint64(rowIdx uint64) []uint64 {
 	if db.DataUint64 == nil {
 		return make([]uint64, db.R/8)
 	}
+	// Should just be direct now.
+	return db.DataUint64[rowIdx]
+
 	// Each row is R bytes = R/8 uint64 elements
-	entrySizeUint64 := uint64(db.R) / 8
-	start := rowIdx * entrySizeUint64
-	end := start + entrySizeUint64
-	if end <= uint64(len(db.DataUint64)) {
-		row := make([]uint64, entrySizeUint64)
-		copy(row, db.DataUint64[start:end])
-		return row
-	}
-	return make([]uint64, entrySizeUint64)
+	//entrySizeUint64 := uint64(db.R) / 8
+	//start := rowIdx * entrySizeUint64
+	//end := start + entrySizeUint64
+	//if end <= uint64(len(db.DataUint64)) {
+	//	row := make([]uint64, entrySizeUint64)
+	//	copy(row, db.DataUint64[start:end])
+	//	return row
+	//}
+	//return make([]uint64, entrySizeUint64)
 }

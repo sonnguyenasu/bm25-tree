@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"bm25-msmarco/internal/bm25"
+	"github.com/dkblackley/bins-go/tree/internal/bm25"
 
 	"github.com/dkblackley/bins-go/globals"
 	"github.com/dkblackley/bins-go/pianopir"
@@ -36,7 +36,7 @@ func (P PIRTree) Preprocess() {
 
 func Runtree(config globals.Args) *PIRTree {
 
-	binsconf = config.BinsConf
+	binsconf := config.BinsConf
 
 	index := binsconf.Index
 	queries := binsconf.Queries
@@ -67,33 +67,33 @@ func Runtree(config globals.Args) *PIRTree {
 	skipStage2 := binsconf.SkipStage2
 
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
-	bm25.Debug = *debug
+	bm25.Debug = debug
 	// Validate required flags (qrels optional for Stage3-only runs)
-	if *index == "" || *queries == "" {
+	if index == "" || queries == "" {
 		fmt.Println("Required flags: --index, --queries")
 		flag.Usage()
 		os.Exit(1)
 	}
-	if *qrels == "" {
+	if qrels == "" {
 		fmt.Println("Warning: --qrels not provided; evaluation (MRR) will be disabled")
 	}
 
 	// Create BM25, parameters
 	params := &bm25.BM25Params{
-		K1: *k1,
-		B:  *bParam,
+		K1: k1,
+		B:  bParam,
 	}
 	fmt.Printf("BM25, Parameters: K1=%.2f, B=%.2f\n", params.K1, params.B)
 
 	// Load Stage1, database
 	// Enable PIR if using precomputation
-	enablePIR := *precompute
-	batchSize := uint64(*pirBatchSize)
+	enablePIR := precompute
+	batchSize := uint64(pirBatchSize)
 
 	var err error
 
 	// Load Stage1, database with optional PIR support
-	stage1DB, err := bm25.NewStage1PIRDBWithPIR(*stage1DataBin, *stage1IdmapBin, *vocab, *r, enablePIR, batchSize)
+	stage1DB, err := bm25.NewStage1PIRDBWithPIR(stage1DataBin, stage1IdmapBin, vocab, r, enablePIR, batchSize)
 	if err != nil {
 		fmt.Printf("Error loading Stage1, database: %v\n", err)
 		os.Exit(1)
@@ -102,14 +102,14 @@ func Runtree(config globals.Args) *PIRTree {
 
 	// Load Stage2, database (skip if requested or if loading saved hitSubs)
 	var stage2DB *bm25.Stage2Precomputed = nil
-	if !*skipStage2 && *loadStage2Hits == "" {
+	if !skipStage2 && loadStage2Hits == "" {
 		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
 			"data/stage2/data.bin",
 			"data/stage2/idmap.bin",
-			*vocab,
-			*B,
-			*s,
-			*scale,
+			vocab,
+			B,
+			s,
+			scale,
 			enablePIR, // Use same enablePIR flag as Stage1
 			batchSize,
 		)
@@ -118,9 +118,9 @@ func Runtree(config globals.Args) *PIRTree {
 			os.Exit(1)
 		}
 		defer stage2DB.Close()
-	} else if *loadStage2Hits != "" {
-		fmt.Printf("Loading Stage2 hits from %s; skipping Stage2 DB initialization\n", *loadStage2Hits)
-	} else if *skipStage2 {
+	} else if loadStage2Hits != "" {
+		fmt.Printf("Loading Stage2 hits from %s; skipping Stage2 DB initialization\n", loadStage2Hits)
+	} else if skipStage2 {
 		fmt.Printf("Skipping Stage2 DB initialization as requested (--skip-stage2)\n")
 	}
 
@@ -130,7 +130,7 @@ func Runtree(config globals.Args) *PIRTree {
 
 	// Load or create layout
 	var layout *bm25.LayoutWithStats
-	if *precompute {
+	if precompute {
 		// Load from file
 		layout, err = loadLayout("./data/layout_with_stats.json")
 		if err != nil {
@@ -140,16 +140,16 @@ func Runtree(config globals.Args) *PIRTree {
 	} else {
 		// Create new layout
 		layout = &bm25.LayoutWithStats{
-			N: getNumDocs(*index),
-			B: *B,
-			R: *r,
+			N: getNumDocs(index),
+			B: B,
+			R: r,
 		}
 		// Precompute stats would go here if we had Lucene adapter
 	}
 
 	// If a docmap exists in the index directory, load it so we can write external IDs
 	var luceneIdx *bm25.LuceneIndex
-	docmapPath := filepath.Join(*index, "docmap.bin")
+	docmapPath := filepath.Join(index, "docmap.bin")
 	if _, err := os.Stat(docmapPath); err == nil {
 		li, err := bm25.NewLuceneIndex(docmapPath)
 		if err != nil {
@@ -179,11 +179,11 @@ func Runtree(config globals.Args) *PIRTree {
 	// var stage1DB *bm25.Stage1PIRDB = nil
 	// var stage2DB *bm25.Stage2Precomputed = nil
 	// Process queries using analyzed queries file
-	analyzedQueriesPath := strings.Replace(*queries, ".tsv", ".analyzed.json", 1)
+	analyzedQueriesPath := strings.Replace(queries, ".tsv", ".analyzed.json", 1)
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
-	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "data/block_permutations.json", *embedDim, enablePIR, uint64(32))
+	if docEmbed != "" && docIDMap != "" && queryEmbed != "" {
+		sr, err := bm25.NewStage3Reranker(docEmbed, docIDMap, queryEmbed, "data/block_permutations.json", embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {
@@ -192,7 +192,8 @@ func Runtree(config globals.Args) *PIRTree {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords)
+	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, maxQueries, L, s, kCandidates, k, stage3, qrels, loadStage2Hits, saveStage2Hits, skipStage2, queryWords)
+
 }
 
 type AnalyzedQuery struct {
