@@ -204,7 +204,8 @@ func NewStage3Reranker(
 		//}
 
 		sr.Pir = pianopir.NewSimpleBatchPianoPIR(
-			dbSize,
+			// dbSize,
+			uint64(len(embedUint64)),
 			dbEntrySizeUint64,
 			entrySizeBytes,
 			batchSize,
