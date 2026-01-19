@@ -711,7 +711,7 @@ def experiment(args):
     pir_db = None
     if args.use_pir_db:
         if not all([args.data_bin, args.idmap_bin, args.vocab]):
-            raise SystemExit("Error: --use-pir-db requires --data-bin, --idmap-bin, and --vocab")
+            raise SystemExit("Error: --use-Pir-db requires --data-bin, --idmap-bin, and --vocab")
         # Pass r_round2 to the DB loader
         pir_db = Stage2PIRDB(args.data_bin, args.idmap_bin, args.vocab, r_round2)
     
@@ -889,14 +889,14 @@ def main():
     ap.add_argument('--precompute', action='store_true', help="If set, load precomputed layout and stats from storage instead of recomputing")
 
     # --- NEW ARGS ---
-    ap.add_argument('--use-pir-db', action='store_true', 
+    ap.add_argument('--use-Pir-db', action='store_true',
                       help="Use pre-computed Stage-2 PIR database for Round 2")
     ap.add_argument('--data-bin', type=str, default=None, 
-                      help="Path to data.bin (required if --use-pir-db)")
+                      help="Path to data.bin (required if --use-Pir-db)")
     ap.add_argument('--idmap-bin', type=str, default=None, 
-                      help="Path to idmap.bin (required if --use-pir-db)")
+                      help="Path to idmap.bin (required if --use-Pir-db)")
     ap.add_argument('--vocab', type=str, default=None, 
-                      help="Path to vocab.txt (required if --use-pir-db)")
+                      help="Path to vocab.txt (required if --use-Pir-db)")
     ap.add_argument('--scale', type=float, default=10.0, 
                       help="Scale factor (must match DB build scale)")
     ap.add_argument('--stage1-data-bin', type=str, default=None, 

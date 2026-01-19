@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dkblackley/bins-go/pianopir"
 	"github.com/dkblackley/bins-go/tree/internal/bm25"
 	"github.com/sirupsen/logrus"
 
 	"github.com/dkblackley/bins-go/globals"
-	"github.com/dkblackley/bins-go/pianopir"
 )
 
 type PIRTree struct {
@@ -37,39 +37,102 @@ type PIRTree struct {
 }
 
 func (P PIRTree) GetBatchNums() (uint64, uint64, uint64) {
-	//TODO implement me
-	panic("implement me")
+
+	pirs := []struct {
+		FinishedBatchNum uint64
+		SupportBatchNum  uint64
+		BatchNumNeeded   uint64 // Assuming Config returns a struct with BatchNumNeeded
+	}{
+		{P.stage1DB.Pir.FinishedBatchNum, P.stage1DB.Pir.SupportBatchNum, P.stage1DB.Pir.Config().BatchNumNeeded},
+		{P.stage2DB.Pir.FinishedBatchNum, P.stage2DB.Pir.SupportBatchNum, P.stage1DB.Pir.Config().BatchNumNeeded},
+		{P.stage3.Pir.FinishedBatchNum, P.stage3.Pir.SupportBatchNum, P.stage1DB.Pir.Config().BatchNumNeeded},
+	}
+
+	for _, pir := range pirs {
+		f := pir.FinishedBatchNum
+		n := pir.BatchNumNeeded
+		s := pir.SupportBatchNum
+
+		if f+n >= s {
+			return f, n, s
+		}
+	}
+
+	lastPir := pirs[len(pirs)-1]
+	return lastPir.FinishedBatchNum, lastPir.BatchNumNeeded, lastPir.SupportBatchNum
 }
 
-func (P PIRTree) PIRPreprocess() time.Duration {
-	//TODO implement me
-	panic("implement me")
+func (P *PIRTree) PIRPreprocess() time.Duration {
+	var total time.Duration
+
+	pirs := []*pianopir.SimpleBatchPianoPIR{
+		P.stage1DB.Pir,
+		P.stage2DB.Pir,
+		P.stage3.Pir,
+	}
+
+	for _, pir := range pirs {
+		f := pir.FinishedBatchNum
+		n := pir.Config().BatchNumNeeded
+		s := pir.SupportBatchNum
+
+		if f+n >= s {
+			total += pir.Preprocessing()
+		}
+	}
+
+	return total
 }
 
-func (P PIRTree) GetMetaData() map[string]string {
-	//TODO implement me
-	panic("implement me")
-}
+func (P *PIRTree) GetMetaData() map[string]string {
+	// Initialize the combined map
+	meta := make(map[string]string)
 
-func (P PIRTree) GetBatchPIRInfo() *pianopir.SimpleBatchPianoPIR {
-	//TODO implement me
-	panic("implement me")
+	// Define the stages and their corresponding suffixes
+	stages := []struct {
+		pir    *pianopir.SimpleBatchPianoPIR
+		suffix string
+	}{
+		{P.stage1DB.Pir, "_stage1"},
+		{P.stage2DB.Pir, "_stage2"},
+		{P.stage3.Pir, "_stage3"},
+	}
+
+	// Loop through each stage, retrieve info, append suffix, and merge
+	for _, stage := range stages {
+		info := stage.pir.PrintInfo()
+		for k, v := range info {
+			meta[k+stage.suffix] = v
+		}
+	}
+
+	return meta
 }
 
 func (P PIRTree) DoSearch(QID string, k int) (globals.Decodable, error) {
 
 	query := P.queryMap[QID]
 
-	processAnalyzedQuery(P.layout, P.stage1DB, P.stage2DB, P.luceneIdx, P.config.BinsConf.L, P.config.BinsConf.S, P.config.BinsConf.KCandidates, P.config.BinsConf.K, P.stage3, P.config.BinsConf.SkipStage2, P.queryWords, query, P.loadedHits, P.queryCount, P.qrelsMap)
+	temp := processAnalyzedQuery(P.layout, P.stage1DB, P.stage2DB, P.luceneIdx, P.config.BinsConf.L, P.config.BinsConf.S, P.config.BinsConf.KCandidates, P.config.BinsConf.K, P.stage3, P.config.BinsConf.SkipStage2, P.queryWords, query, P.loadedHits, P.queryCount, P.qrelsMap)
 	P.queryCount++
 
-	//TODO implement me
-	panic("implement me")
+	return temp, nil
 }
 
 func (P PIRTree) Preprocess() {
-	//TODO implement me
-	panic("implement me")
+
+	pirs := []*pianopir.SimpleBatchPianoPIR{
+
+		P.stage1DB.Pir,
+		P.stage2DB.Pir,
+		P.stage3.Pir,
+	}
+
+	for _, pir := range pirs {
+
+		pir.Preprocessing()
+	}
+
 }
 
 func Runtree(config globals.Args) *PIRTree {

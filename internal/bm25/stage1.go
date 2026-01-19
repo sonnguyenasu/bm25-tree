@@ -18,7 +18,7 @@ type Stage1PIRDB struct {
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
-	pir         *pianopir.SimpleBatchPianoPIR
+	Pir         *pianopir.SimpleBatchPianoPIR
 	mu          sync.RWMutex
 }
 
@@ -33,7 +33,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		R:           r,
 		LookupTable: make(map[int]map[int]int),
 		Vocab:       make(map[string]int),
-		pir:         nil,
+		Pir:         nil,
 	}
 
 	// Load vocab
@@ -111,7 +111,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		entrySizeUint64 := uint64(r) / 8
 		db.DataUint64 = convertBytesToUint64(db.DataMmap, entrySizeUint64)
 		dbSize := uint64(len(db.DataUint64)) / entrySizeUint64
-		db.pir = pianopir.NewSimpleBatchPianoPIR(
+		db.Pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
 			uint64(len(db.DataUint64[0])),
 			uint64(r),
@@ -121,7 +121,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 			batchSize,
 		)
 		fmt.Printf("Stage1 PIR: initialized with DBSize=%d, EntrySize=%d bytes, BatchSize=%d\n", dbSize, r, batchSize)
-		db.pir.Preprocessing()
+		db.Pir.Preprocessing()
 		fmt.Printf("Stage1 PIR: preprocessing complete\n")
 	}
 
@@ -155,7 +155,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	if db.pir == nil {
+	if db.Pir == nil {
 		// Fallback to direct read if PIR not available
 		return db.getScoreDirect(termIDs, nodeIDs)
 	}
@@ -193,7 +193,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 	}
 
 	// Single batch PIR query
-	responses, err := db.pir.Query(rowIndices)
+	responses, err := db.Pir.Query(rowIndices)
 	if err != nil {
 		fmt.Printf("Stage1 batch query error: %v, falling back to direct read\n", err)
 		return db.getScoreDirect(termIDs, nodeIDs)

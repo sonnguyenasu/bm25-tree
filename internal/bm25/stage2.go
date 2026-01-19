@@ -21,7 +21,7 @@ type Stage2Precomputed struct {
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
-	pir         *pianopir.SimpleBatchPianoPIR
+	Pir         *pianopir.SimpleBatchPianoPIR
 	mu          sync.RWMutex
 }
 
@@ -42,7 +42,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		Scale:       scale,
 		LookupTable: make(map[int]map[int]int),
 		Vocab:       make(map[string]int),
-		pir:         nil,
+		Pir:         nil,
 	}
 
 	// Load vocab
@@ -123,7 +123,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		// we pass DBEntryByteNum = 8 (1 word) to get DBEntrySize = 1 word per row.
 		dbEntryByteNum := uint64(8) // 1 uint64 word
 		//fmt.Printf("Stage2 PIR debug: pre.R=%d, len(DataMmap)=%d (rows), len(DataUint64)=%d (words), DBSize=%d\n", pre.R, len(pre.DataMmap)/pre.R, len(pre.DataUint64), dbSize)
-		pre.pir = pianopir.NewSimpleBatchPianoPIR(
+		pre.Pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
 			1,
 			dbEntryByteNum, // 8 bytes = 1 uint64 word
@@ -133,7 +133,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 			batchSize,
 		)
 		fmt.Printf("Stage2 PIR: initialized with DBSize=%d, EntryByteNum=8 (1 uint64 word), BatchSize=%d\n", dbSize, batchSize)
-		pre.pir.Preprocessing()
+		pre.Pir.Preprocessing()
 		fmt.Printf("Stage2 PIR: preprocessing complete\n")
 	}
 
@@ -239,7 +239,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	}
 
 	// If PIR not available, use direct method
-	if pre.pir == nil {
+	if pre.Pir == nil {
 		return pre.SumBoundsForTerms(terms, leafNodes)
 	}
 
@@ -311,7 +311,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	}
 
 	// BATCH QUERY - single call for all rows
-	responses, err := pre.pir.Query(rowIndices)
+	responses, err := pre.Pir.Query(rowIndices)
 	if err != nil {
 		fmt.Printf("Stage2 batch query error: %v, falling back to direct read\n", err)
 		// Fallback: use direct method
@@ -387,8 +387,8 @@ func (pre *Stage2Precomputed) readRowDirectUint64(rowIdx uint64) []uint64 {
 
 // QueryPIR performs a PIR query for the given row indices (for diagnostic purposes)
 func (pre *Stage2Precomputed) QueryPIR(rowIndices []uint64) ([][]uint64, error) {
-	if pre.pir == nil {
+	if pre.Pir == nil {
 		return nil, fmt.Errorf("PIR not initialized")
 	}
-	return pre.pir.Query(rowIndices)
+	return pre.Pir.Query(rowIndices)
 }
