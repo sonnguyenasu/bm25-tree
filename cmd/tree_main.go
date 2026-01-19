@@ -11,12 +11,39 @@ import (
 	"time"
 
 	"github.com/dkblackley/bins-go/tree/internal/bm25"
+	"github.com/sirupsen/logrus"
 
 	"github.com/dkblackley/bins-go/globals"
 	"github.com/dkblackley/bins-go/pianopir"
 )
 
 type PIRTree struct {
+	// Dimensions           int                      // Dimension of vectors
+	// DBTotalSize          uint64                   // in bytes
+	//Queries              map[string]globals.Query // A mapping from QID to query
+
+	stage1DB  *bm25.Stage1PIRDB
+	stage2DB  *bm25.Stage2Precomputed
+	layout    *bm25.LayoutWithStats
+	luceneIdx *bm25.LuceneIndex
+	stage3    *bm25.Stage3Reranker
+
+	config globals.Args
+}
+
+func (P PIRTree) GetBatchNums() (uint64, uint64, uint64) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (P PIRTree) PIRPreprocess() time.Duration {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (P PIRTree) GetMetaData() map[string]string {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (P PIRTree) GetBatchPIRInfo() *pianopir.SimpleBatchPianoPIR {
@@ -42,11 +69,11 @@ func Runtree(config globals.Args) *PIRTree {
 	queries := binsconf.Queries
 	B := binsconf.B
 	r := binsconf.R
-	L := binsconf.L
+	//L := binsconf.L
 	s := binsconf.S
-	k := binsconf.K
-	kCandidates := binsconf.KCandidates
-	maxQueries := binsconf.MaxQueries
+	//k := binsconf.K
+	//kCandidates := binsconf.KCandidates
+	//maxQueries := binsconf.MaxQueries
 	k1 := binsconf.K1
 	bParam := binsconf.BParam
 	qrels := binsconf.Qrels
@@ -61,16 +88,18 @@ func Runtree(config globals.Args) *PIRTree {
 	queryEmbed := binsconf.QueryEmbed
 	embedDim := binsconf.EmbedDim
 	debug := binsconf.Debug
-	queryWords := binsconf.QueryWords
+	//queryWords := binsconf.QueryWords
 	loadStage2Hits := binsconf.LoadStage2Hits
-	saveStage2Hits := binsconf.SaveStage2Hits
+	//saveStage2Hits := binsconf.SaveStage2Hits
 	skipStage2 := binsconf.SkipStage2
 
-	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
+	// TODO: Change all print to logrus statements
+
+	logrus.Debugln(stage1DataBin, stage1IdmapBin, scale)
 	bm25.Debug = debug
 	// Validate required flags (qrels optional for Stage3-only runs)
 	if index == "" || queries == "" {
-		fmt.Println("Required flags: --index, --queries")
+		logrus.Errorln("Required flags: --index, --queries")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -176,10 +205,9 @@ func Runtree(config globals.Args) *PIRTree {
 			fmt.Printf("\nStage 2 DB not initialized (using loaded Stage2 hits or --skip-stage2)\n")
 		}
 	}
+
 	// var stage1DB *bm25.Stage1PIRDB = nil
 	// var stage2DB *bm25.Stage2Precomputed = nil
-	// Process queries using analyzed queries file
-	analyzedQueriesPath := strings.Replace(queries, ".tsv", ".analyzed.json", 1)
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
 	if docEmbed != "" && docIDMap != "" && queryEmbed != "" {
@@ -192,7 +220,20 @@ func Runtree(config globals.Args) *PIRTree {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, maxQueries, L, s, kCandidates, k, stage3, qrels, loadStage2Hits, saveStage2Hits, skipStage2, queryWords)
+	//TODO: Just this is the querying. I think everything else can be some form of pre-processing
+
+	// Process queries using analyzed queries file
+	// analyzedQueriesPath := strings.Replace(queries, ".tsv", ".analyzed.json", 1)
+	// processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, maxQueries, L, s, kCandidates, k, stage3, qrels, loadStage2Hits, saveStage2Hits, skipStage2, queryWords)
+
+	return &PIRTree{
+		stage1DB:  stage1DB,
+		stage2DB:  stage2DB,
+		layout:    layout,
+		luceneIdx: luceneIdx,
+		stage3:    stage3,
+		config:    config,
+	}
 
 }
 
