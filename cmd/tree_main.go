@@ -167,10 +167,15 @@ func Runtree(config globals.Args) *PIRTree {
 	saveStage2Hits := binsconf.SaveStage2Hits
 	skipStage2 := binsconf.SkipStage2
 
+	dataRoot := config.DatasetsDirectory
+
 	// TODO: Change all print to logrus statements
 
 	logrus.Debugln(stage1DataBin, stage1IdmapBin, scale)
-	bm25.Debug = debug
+
+	if debug >= 1 {
+		bm25.Debug = true
+	}
 	// Validate required flags (qrels optional for Stage3-only runs)
 	if index == "" || queries == "" {
 		logrus.Errorln("Required flags: --index, --queries")
@@ -207,8 +212,8 @@ func Runtree(config globals.Args) *PIRTree {
 	var stage2DB *bm25.Stage2Precomputed = nil
 	if !skipStage2 && loadStage2Hits == "" {
 		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
-			"data/stage2/data.bin",
-			"data/stage2/idmap.bin",
+			dataRoot+"/tree/stage2/data.bin",
+			dataRoot+"/tree/stage2/idmap.bin",
 			vocab,
 			B,
 			s,
@@ -235,7 +240,7 @@ func Runtree(config globals.Args) *PIRTree {
 	var layout *bm25.LayoutWithStats
 	if precompute {
 		// Load from file
-		layout, err = loadLayout("./data/layout_with_stats.json")
+		layout, err = loadLayout(dataRoot + "/tree/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
@@ -285,7 +290,7 @@ func Runtree(config globals.Args) *PIRTree {
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
 	if docEmbed != "" && docIDMap != "" && queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(docEmbed, docIDMap, queryEmbed, "data/block_permutations.json", embedDim, enablePIR, uint64(32))
+		sr, err := bm25.NewStage3Reranker(docEmbed, docIDMap, queryEmbed, dataRoot+"/tree/block_permutations.json", embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {

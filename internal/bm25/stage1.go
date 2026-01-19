@@ -112,17 +112,18 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		db.DataUint64 = convertBytesToUint64(db.DataMmap, entrySizeUint64)
 		dbSize := uint64(len(db.DataUint64)) / entrySizeUint64
 		db.Pir = pianopir.NewSimpleBatchPianoPIR(
-			dbSize,
+			uint64(len(db.DataUint64)),
 			uint64(len(db.DataUint64[0])),
-			uint64(r),
+			//uint64(r),
+			dbSize,
 			batchSize,
 			db.DataUint64,
 			20, // FailureProbLog2
 			batchSize,
 		)
 		fmt.Printf("Stage1 PIR: initialized with DBSize=%d, EntrySize=%d bytes, BatchSize=%d\n", dbSize, r, batchSize)
-		db.Pir.Preprocessing()
-		fmt.Printf("Stage1 PIR: preprocessing complete\n")
+		// db.Pir.Preprocessing()
+		// fmt.Printf("Stage1 PIR: preprocessing complete\n")
 	}
 
 	return db, nil

@@ -213,8 +213,8 @@ func NewStage3Reranker(
 			batchSize,
 		)
 		fmt.Printf("Stage3 PIR (Blocking Mode): initialized with DBSize=%d blocks, EntrySize=%d bytes (8 docs/block), BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
-		sr.Pir.Preprocessing()
-		fmt.Printf("Stage3 PIR: preprocessing complete\n")
+		//sr.Pir.Preprocessing()
+		//fmt.Printf("Stage3 PIR: preprocessing complete\n")
 		sr.pirUsable = true
 	}
 

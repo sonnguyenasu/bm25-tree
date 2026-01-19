@@ -133,8 +133,8 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 			batchSize,
 		)
 		fmt.Printf("Stage2 PIR: initialized with DBSize=%d, EntryByteNum=8 (1 uint64 word), BatchSize=%d\n", dbSize, batchSize)
-		pre.Pir.Preprocessing()
-		fmt.Printf("Stage2 PIR: preprocessing complete\n")
+		//pre.Pir.Preprocessing()
+		//fmt.Printf("Stage2 PIR: preprocessing complete\n")
 	}
 
 	return pre, nil
