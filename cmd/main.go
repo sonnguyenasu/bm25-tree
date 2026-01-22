@@ -30,6 +30,9 @@ func main() {
 	precompute := flag.Bool("precompute", false, "If set, load precomputed layout and stats from storage")
 	stage1DataBin := flag.String("stage1-data-bin", "", "Path to Stage-1, data.bin")
 	stage1IdmapBin := flag.String("stage1-idmap-bin", "", "Path to Stage-1, idmap.bin")
+	stage2DataBin := flag.String("stage2-data-bin", "", "Path to Stage-1, data.bin")
+	stage2IdmapBin := flag.String("stage2-idmap-bin", "", "Path to Stage-1, idmap.bin")
+	layoutPath := flag.String("layout-path", "./data/layout_with_stats.json", "Path to layout_with_stats.json")
 	vocab := flag.String("vocab", "", "Path to vocab.json")
 	scale := flag.Float64("scale", 10.0, "Scale factor")
 	pirBatchSize := flag.Int64("pir-batch-size", 1024, "Batch size for PIR queries (larger = fewer partitions but more memory)")
@@ -85,8 +88,8 @@ func main() {
 	var stage2DB *bm25.Stage2Precomputed = nil
 	if !*skipStage2 && *loadStage2Hits == "" {
 		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
-			"data/stage2/data.bin",
-			"data/stage2/idmap.bin",
+			*stage2DataBin,//"data/stage2/data.bin",
+			*stage2IdmapBin,//"data/stage2/idmap.bin",
 			*vocab,
 			*B,
 			*s,
@@ -113,7 +116,7 @@ func main() {
 	var layout *bm25.LayoutWithStats
 	if *precompute {
 		// Load from file
-		layout, err = loadLayout("./data/layout_with_stats.json")
+		layout, err = loadLayout(*layoutPath)//"./data/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
