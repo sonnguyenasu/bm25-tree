@@ -7,3 +7,7 @@ bm25-search
 *.ids
 *.txt
 *.zip
+exp_setup
+STAGE3_*
+simulation
+indexes
