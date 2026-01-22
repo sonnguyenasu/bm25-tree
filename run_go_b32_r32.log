@@ -1,0 +1,615 @@
+DB size in MB = 1811.4101257324219
+total storage = 285.9375 MB
+comm cost per batch = 232 KB
+amortized preprocessing comm cost = 280.36335682436516 KB
+total amortized comm cost = 512.3633568243652 KB
+DB size in MB = 1099.6776809692383
+total storage = 219.375 MB
+comm cost per batch = 277 KB
+amortized preprocessing comm cost = 102.6031840831435 KB
+total amortized comm cost = 379.6031840831435 KB
+DB size in MB = 6475.9453125
+total storage = 3180.0078125 MB
+comm cost per batch = 200 KB
+amortized preprocessing comm cost = 4529.622950819672 KB
+total amortized comm cost = 4730.122950819672 KB
+  Original terms (4): [what paula deen brother]
+  Padded terms  (8): [what paula deen brother what what what what]
+Round 1, took 229.725168ms
+Round 2, took 12.709148ms
+Round 3, took 24.015786ms
+Stage3 Rerank: Query 1048585 MRR@10=1.0000, candidates=1600
+  Original terms (3): [androgen receptor defin]
+  Padded terms  (8): [androgen receptor defin what what what what what]
+Round 1, took 72.149931ms
+Round 2, took 9.795002ms
+Round 3, took 23.641401ms
+Stage3 Rerank: Query 2 MRR@10=1.0000, candidates=1600
+  Original terms (5): [treat tension headach without medic]
+  Padded terms  (8): [treat tension headach without medic what what what]
+Round 1, took 77.232861ms
+Round 2, took 28.536848ms
+Round 3, took 22.120157ms
+Stage3 Rerank: Query 524332 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what paranoid sc]
+  Padded terms  (8): [what paranoid sc what what what what what]
+Round 1, took 35.539022ms
+Round 2, took 7.66439ms
+Round 3, took 21.212267ms
+Stage3 Rerank: Query 1048642 MRR@10=0.1429, candidates=1600
+  Original terms (4): [treatment varicos vein leg]
+  Padded terms  (8): [treatment varicos vein leg what what what what]
+Round 1, took 47.746525ms
+Round 2, took 13.51164ms
+Round 3, took 23.630771ms
+Stage3 Rerank: Query 524447 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what prime rate canada]
+  Padded terms  (8): [what prime rate canada what what what what]
+Round 1, took 49.999157ms
+Round 2, took 16.626945ms
+Round 3, took 23.036502ms
+Stage3 Rerank: Query 786674 MRR@10=0.2500, candidates=1600
+  Original terms (6): [who plai young dr mallard nci]
+  Padded terms  (8): [who plai young dr mallard nci what what]
+Round 1, took 72.323969ms
+Round 2, took 30.398873ms
+Round 3, took 23.284639ms
+Stage3 Rerank: Query 1048876 MRR@10=0.2000, candidates=1600
+  Original terms (4): [what oper system misconfigur]
+  Padded terms  (8): [what oper system misconfigur what what what what]
+Round 1, took 40.271191ms
+Round 2, took 14.780929ms
+Round 3, took 22.659603ms
+Stage3 Rerank: Query 1048917 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what prioriti pass]
+  Padded terms  (8): [what prioriti pass what what what what what]
+Round 1, took 35.358111ms
+Round 2, took 11.978473ms
+Round 3, took 22.284186ms
+Stage3 Rerank: Query 786786 MRR@10=0.0000, candidates=1600
+  Original terms (3): [tricar servic number]
+  Padded terms  (8): [tricar servic number what what what what what]
+Round 1, took 36.601742ms
+Round 2, took 11.485564ms
+Round 3, took 23.397793ms
+Stage3 Rerank: Query 524699 MRR@10=1.0000, candidates=1600
+  Original terms (4): [who propos geocentr theori]
+  Padded terms  (8): [who propos geocentr theori what what what what]
+Round 1, took 40.790559ms
+Round 2, took 13.489979ms
+Round 3, took 22.887582ms
+Stage3 Rerank: Query 1048995 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what probabl biologi]
+  Padded terms  (8): [what probabl biologi what what what what what]
+Round 1, took 39.998177ms
+Round 2, took 12.905007ms
+Round 3, took 22.400104ms
+Stage3 Rerank: Query 786857 MRR@10=0.0000, candidates=1600
+  Original terms (3): [tricuspid atresia definit]
+  Padded terms  (8): [tricuspid atresia definit what what what what what]
+Round 1, took 23.775073ms
+Round 2, took 8.260743ms
+Round 3, took 23.298425ms
+Stage3 Rerank: Query 524722 MRR@10=0.0000, candidates=1600
+  Original terms (5): [what level doe zubat evolv]
+  Padded terms  (8): [what level doe zubat evolv what what what]
+Round 1, took 52.951154ms
+Round 2, took 19.799548ms
+Round 3, took 22.632422ms
+Stage3 Rerank: Query 873886 MRR@10=0.0000, candidates=1600
+  Original terms (2): [trigemin definit]
+  Padded terms  (8): [trigemin definit what what what what what what]
+Round 1, took 20.157342ms
+Round 2, took 6.219209ms
+Round 3, took 21.839318ms
+Stage3 Rerank: Query 524733 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what process control equip]
+  Padded terms  (8): [what process control equip what what what what]
+Round 1, took 48.616973ms
+Round 2, took 16.481561ms
+Round 3, took 22.852596ms
+Stage3 Rerank: Query 786918 MRR@10=0.0000, candidates=1600
+  Original terms (6): [what process improv lean six sigma]
+  Padded terms  (8): [what process improv lean six sigma what what]
+Round 1, took 72.014917ms
+Round 2, took 29.931374ms
+Round 3, took 21.864646ms
+Stage3 Rerank: Query 786937 MRR@10=0.3333, candidates=1600
+  Original terms (3): [what outsid dna]
+  Padded terms  (8): [what outsid dna what what what what what]
+Round 1, took 35.981334ms
+Round 2, took 10.963211ms
+Round 3, took 23.711994ms
+Stage3 Rerank: Query 1049085 MRR@10=0.0000, candidates=1600
+  Original terms (4): [how long dai ven]
+  Padded terms  (8): [how long dai ven what what what what]
+Round 1, took 47.618454ms
+Round 2, took 14.712931ms
+Round 3, took 22.903692ms
+Stage3 Rerank: Query 262232 MRR@10=0.0000, candidates=1600
+  Original terms (2): [tristess definit]
+  Padded terms  (8): [tristess definit what what what what what what]
+Round 1, took 16.334835ms
+Round 2, took 4.171565ms
+Round 3, took 23.016164ms
+Stage3 Rerank: Query 524835 MRR@10=0.3333, candidates=1600
+  Original terms (3): [trivex lens cost]
+  Padded terms  (8): [trivex lens cost what what what what what]
+Round 1, took 26.782295ms
+Round 2, took 8.91213ms
+Round 3, took 20.949863ms
+Stage3 Rerank: Query 524848 MRR@10=1.0000, candidates=1600
+  Original terms (4): [who record love you]
+  Padded terms  (8): [who record love you what what what what]
+Round 1, took 49.338793ms
+Round 2, took 18.671855ms
+Round 3, took 23.720469ms
+Stage3 Rerank: Query 1049200 MRR@10=0.0000, candidates=1600
+  Original terms (5): [who record song still on]
+  Padded terms  (8): [who record song still on what what what]
+Round 1, took 58.389945ms
+Round 2, took 28.308909ms
+Round 3, took 20.219839ms
+Stage3 Rerank: Query 1049221 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what nyu rank]
+  Padded terms  (8): [what nyu rank what what what what what]
+Round 1, took 31.228857ms
+Round 2, took 10.551436ms
+Round 3, took 20.989438ms
+Stage3 Rerank: Query 1049329 MRR@10=0.0000, candidates=1600
+  Original terms (4): [who s sherlock holm]
+  Padded terms  (8): [who s sherlock holm what what what what]
+Round 1, took 47.846233ms
+Round 2, took 18.678578ms
+Round 3, took 21.761892ms
+Stage3 Rerank: Query 1049368 MRR@10=0.3333, candidates=1600
+  Original terms (5): [what project charter project manag]
+  Padded terms  (8): [what project charter project manag what what what]
+Round 1, took 55.632553ms
+Round 2, took 18.741055ms
+Round 3, took 20.881164ms
+Stage3 Rerank: Query 787255 MRR@10=0.1250, candidates=1600
+  Original terms (5): [how long typic car loan]
+  Padded terms  (8): [how long typic car loan what what what]
+Round 1, took 62.511314ms
+Round 2, took 20.238214ms
+Round 3, took 21.921653ms
+Stage3 Rerank: Query 262974 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what nortriptylin prescrib]
+  Padded terms  (8): [what nortriptylin prescrib what what what what what]
+Round 1, took 26.108916ms
+Round 2, took 11.284185ms
+Round 3, took 21.12326ms
+Stage3 Rerank: Query 1049456 MRR@10=0.0000, candidates=1600
+  Original terms (5): [cost attend eastern illinoi univers]
+  Padded terms  (8): [cost attend eastern illinoi univers what what what]
+Round 1, took 62.914553ms
+Round 2, took 25.489321ms
+Round 3, took 22.161805ms
+Stage3 Rerank: Query 1049774 MRR@10=1.0000, candidates=1600
+  Original terms (2): [what njstart]
+  Padded terms  (8): [what njstart what what what what what what]
+Round 1, took 14.311144ms
+Round 2, took 3.029644ms
+Round 3, took 18.998689ms
+Stage3 Rerank: Query 1049791 MRR@10=1.0000, candidates=1600
+  Original terms (4): [turkei china time differ]
+  Padded terms  (8): [turkei china time differ what what what what]
+Round 1, took 65.174819ms
+Round 2, took 22.330433ms
+Round 3, took 36.923828ms
+Stage3 Rerank: Query 525534 MRR@10=0.5000, candidates=1600
+  Original terms (3): [3 5 60]
+  Padded terms  (8): [3 5 60 what what what what what]
+Round 1, took 55.578321ms
+Round 2, took 10.420489ms
+Round 3, took 33.114878ms
+Stage3 Rerank: Query 1288 MRR@10=1.0000, candidates=1600
+  Original terms (6): [who sang i feel wonder tonight]
+  Padded terms  (8): [who sang i feel wonder tonight what what]
+Round 1, took 102.759501ms
+Round 2, took 28.692642ms
+Round 3, took 32.376358ms
+Stage3 Rerank: Query 1049894 MRR@10=0.3333, candidates=1600
+  Original terms (4): [what provoc allergi test]
+  Padded terms  (8): [what provoc allergi test what what what what]
+Round 1, took 65.152226ms
+Round 2, took 15.205579ms
+Round 3, took 37.137251ms
+Stage3 Rerank: Query 787784 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what net gain]
+  Padded terms  (8): [what net gain what what what what what]
+Round 1, took 51.274047ms
+Round 2, took 14.012853ms
+Round 3, took 32.003125ms
+Stage3 Rerank: Query 1049955 MRR@10=1.0000, candidates=1600
+  Original terms (6): [who sang louie louie louie louie]
+  Padded terms  (8): [who sang louie louie louie louie what what]
+Round 1, took 74.664595ms
+Round 2, took 21.003394ms
+Round 3, took 35.516228ms
+Stage3 Rerank: Query 1050007 MRR@10=0.0000, candidates=1600
+  Original terms (3): [twin tower adress]
+  Padded terms  (8): [twin tower adress what what what what what]
+Round 1, took 44.542082ms
+Round 2, took 10.144148ms
+Round 3, took 35.420218ms
+Stage3 Rerank: Query 525779 MRR@10=0.0000, candidates=1600
+  Original terms (6): [how long flight from hyd dubai]
+  Padded terms  (8): [how long flight from hyd dubai what what]
+Round 1, took 93.973129ms
+Round 2, took 28.094345ms
+Round 3, took 37.527044ms
+Stage3 Rerank: Query 263670 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what common name jade]
+  Padded terms  (8): [what common name jade what what what what]
+Round 1, took 69.794647ms
+Round 2, took 19.572069ms
+Round 3, took 36.331072ms
+Stage3 Rerank: Query 811852 MRR@10=0.0000, candidates=1600
+  Original terms (3): [60x40 slab cost]
+  Padded terms  (8): [60x40 slab cost what what what what what]
+Round 1, took 36.28736ms
+Round 2, took 7.425179ms
+Round 3, took 33.009799ms
+Stage3 Rerank: Query 1576 MRR@10=0.0000, candidates=1600
+  Original terms (4): [two river supervisori union]
+  Padded terms  (8): [two river supervisori union what what what what]
+Round 1, took 67.582912ms
+Round 2, took 10.387277ms
+Round 3, took 36.39331ms
+Stage3 Rerank: Query 525868 MRR@10=0.5000, candidates=1600
+  Original terms (6): [how much do jockei have weigh]
+  Padded terms  (8): [how much do jockei have weigh what what]
+Round 1, took 110.533899ms
+Round 2, took 33.698837ms
+Round 3, took 34.979267ms
+Stage3 Rerank: Query 306105 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what nabumeton us treat]
+  Padded terms  (8): [what nabumeton us treat what what what what]
+Round 1, took 52.89077ms
+Round 2, took 16.308274ms
+Round 3, took 32.825362ms
+Stage3 Rerank: Query 1050231 MRR@10=0.2500, candidates=1600
+  Original terms (8): [who sang song i had time my life]
+Round 1, took 142.873827ms
+Round 2, took 58.483681ms
+Round 3, took 28.050122ms
+Stage3 Rerank: Query 1050253 MRR@10=0.0000, candidates=1600
+  Original terms (2): [what myrtu]
+  Padded terms  (8): [what myrtu what what what what what what]
+Round 1, took 23.778058ms
+Round 2, took 5.021445ms
+Round 3, took 15.838049ms
+Stage3 Rerank: Query 1050275 MRR@10=1.0000, candidates=1600
+  Original terms (3): [type antibiot oseltamivir]
+  Padded terms  (8): [type antibiot oseltamivir what what what what what]
+Round 1, took 41.653634ms
+Round 2, took 9.003962ms
+Round 3, took 34.27449ms
+Stage3 Rerank: Query 526013 MRR@10=1.0000, candidates=1600
+  Original terms (4): [how long your disabl]
+  Padded terms  (8): [how long your disabl what what what what]
+Round 1, took 64.708952ms
+Round 2, took 18.714725ms
+Round 3, took 35.066882ms
+Stage3 Rerank: Query 263889 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what puritu ani fast]
+  Padded terms  (8): [what puritu ani fast what what what what]
+Round 1, took 51.455268ms
+Round 2, took 10.48467ms
+Round 3, took 33.760733ms
+Stage3 Rerank: Query 788431 MRR@10=0.0000, candidates=1600
+  Original terms (4): [how long mount beacon]
+  Padded terms  (8): [how long mount beacon what what what what]
+Round 1, took 70.021503ms
+Round 2, took 14.62233ms
+Round 3, took 36.907017ms
+Stage3 Rerank: Query 264150 MRR@10=0.5000, candidates=1600
+  Original terms (4): [type anti depress medic]
+  Padded terms  (8): [type anti depress medic what what what what]
+Round 1, took 68.932703ms
+Round 2, took 22.559655ms
+Round 3, took 33.099538ms
+Stage3 Rerank: Query 526331 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what purpos sim card]
+  Padded terms  (8): [what purpos sim card what what what what]
+Round 1, took 68.621017ms
+Round 2, took 18.148069ms
+Round 3, took 36.471628ms
+Stage3 Rerank: Query 788484 MRR@10=0.0000, candidates=1600
+  Original terms (5): [who sing song just swing]
+  Padded terms  (8): [who sing song just swing what what what]
+Round 1, took 84.427918ms
+Round 2, took 27.270674ms
+Round 3, took 31.077832ms
+Stage3 Rerank: Query 1050670 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what motor dyspraxia]
+  Padded terms  (8): [what motor dyspraxia what what what what what]
+Round 1, took 37.749393ms
+Round 2, took 7.004918ms
+Round 3, took 31.670618ms
+Stage3 Rerank: Query 1050695 MRR@10=0.2500, candidates=1600
+  Original terms (5): [how long peak time morphin]
+  Padded terms  (8): [how long peak time morphin what what what]
+Round 1, took 110.26877ms
+Round 2, took 28.343645ms
+Round 3, took 34.562473ms
+Stage3 Rerank: Query 264284 MRR@10=0.1429, candidates=1600
+  Original terms (5): [who sing arabian night aladdin]
+  Padded terms  (8): [who sing arabian night aladdin what what what]
+Round 1, took 75.38357ms
+Round 2, took 16.397893ms
+Round 3, took 34.235828ms
+Stage3 Rerank: Query 1050747 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what monolog illus]
+  Padded terms  (8): [what monolog illus what what what what what]
+Round 1, took 38.314196ms
+Round 2, took 8.123535ms
+Round 3, took 30.458917ms
+Stage3 Rerank: Query 1050778 MRR@10=1.0000, candidates=1600
+  Original terms (5): [bethel univers found what year]
+  Padded terms  (8): [bethel univers found what year what what what]
+Round 1, took 110.341828ms
+Round 2, took 21.224711ms
+Round 3, took 33.735104ms
+Stage3 Rerank: Query 2235 MRR@10=0.5000, candidates=1600
+  Original terms (6): [how long recoveri from hemorrhoid band]
+  Padded terms  (8): [how long recoveri from hemorrhoid band what what]
+Round 1, took 108.246051ms
+Round 2, took 32.194104ms
+Round 3, took 35.159707ms
+Stage3 Rerank: Query 264410 MRR@10=1.0000, candidates=1600
+  Original terms (2): [what qa]
+  Padded terms  (8): [what qa what what what what what what]
+Round 1, took 33.893694ms
+Round 2, took 7.160992ms
+Round 3, took 30.211401ms
+Stage3 Rerank: Query 788702 MRR@10=0.0000, candidates=1600
+  Original terms (6): [who sing c'est la vie music]
+  Padded terms  (8): [who sing c'est la vie music what what]
+Round 1, took 124.472342ms
+Round 2, took 26.545018ms
+Round 3, took 33.897341ms
+Stage3 Rerank: Query 1050857 MRR@10=0.3333, candidates=1600
+  Original terms (4): [largest ship dai year]
+  Padded terms  (8): [largest ship dai year what what what what]
+Round 1, took 74.60806ms
+Round 2, took 18.932966ms
+Round 3, took 34.856597ms
+Stage3 Rerank: Query 437291 MRR@10=0.0000, candidates=1600
+  Original terms (5): [what milk thistl us treat]
+  Padded terms  (8): [what milk thistl us treat what what what]
+Round 1, took 85.981302ms
+Round 2, took 24.524754ms
+Round 3, took 35.290534ms
+Stage3 Rerank: Query 1050923 MRR@10=0.0000, candidates=1600
+  Original terms (3): [type busi entiti]
+  Padded terms  (8): [type busi entiti what what what what what]
+Round 1, took 56.007719ms
+Round 2, took 13.642375ms
+Round 3, took 35.11908ms
+Stage3 Rerank: Query 526671 MRR@10=0.0000, candidates=1600
+  Original terms (2): [what qualfon]
+  Padded terms  (8): [what qualfon what what what what what what]
+Round 1, took 24.752012ms
+Round 2, took 4.076986ms
+Round 3, took 11.054673ms
+Stage3 Rerank: Query 788851 MRR@10=0.5000, candidates=1600
+  Original terms (5): [how long super bowl game]
+  Padded terms  (8): [how long super bowl game what what what]
+Round 1, took 100.337251ms
+Round 2, took 21.620005ms
+Round 3, took 35.29379ms
+Stage3 Rerank: Query 264594 MRR@10=0.3333, candidates=1600
+  Original terms (5): [what maximum yearli retir contribut]
+  Padded terms  (8): [what maximum yearli retir contribut what what what]
+Round 1, took 91.216859ms
+Round 2, took 26.358858ms
+Round 3, took 35.906393ms
+Stage3 Rerank: Query 830531 MRR@10=0.0000, candidates=1600
+  Original terms (5): [who sing hei good look]
+  Padded terms  (8): [who sing hei good look what what what]
+Round 1, took 87.968614ms
+Round 2, took 23.990348ms
+Round 3, took 31.158634ms
+Stage3 Rerank: Query 1051095 MRR@10=0.5000, candidates=1600
+  Original terms (3): [what methylphenid gener]
+  Padded terms  (8): [what methylphenid gener what what what what what]
+Round 1, took 39.889442ms
+Round 2, took 11.994653ms
+Round 3, took 32.797901ms
+Stage3 Rerank: Query 1051108 MRR@10=0.0000, candidates=1600
+  Original terms (2): [what methanogen]
+  Padded terms  (8): [what methanogen what what what what what what]
+Round 1, took 24.388167ms
+Round 2, took 4.740485ms
+Round 3, took 19.974397ms
+Stage3 Rerank: Query 1051112 MRR@10=0.1250, candidates=1600
+  Original terms (2): [what quillaia]
+  Padded terms  (8): [what quillaia what what what what what what]
+Round 1, took 23.18942ms
+Round 2, took 3.253977ms
+Round 3, took 9.688632ms
+Stage3 Rerank: Query 789037 MRR@10=1.0000, candidates=1600
+  Original terms (3): [what mepap certif]
+  Padded terms  (8): [what mepap certif what what what what what]
+Round 1, took 44.023816ms
+Round 2, took 7.234421ms
+Round 3, took 36.293862ms
+Stage3 Rerank: Query 1051211 MRR@10=1.0000, candidates=1600
+  Original terms (2): [what mening]
+  Padded terms  (8): [what mening what what what what what what]
+Round 1, took 35.207888ms
+Round 2, took 6.598584ms
+Round 3, took 30.908894ms
+Stage3 Rerank: Query 1051214 MRR@10=0.0000, candidates=1600
+  Original terms (2): [what menhir]
+  Padded terms  (8): [what menhir what what what what what what]
+Round 1, took 31.585348ms
+Round 2, took 5.282166ms
+Round 3, took 12.708267ms
+Stage3 Rerank: Query 1051223 MRR@10=1.0000, candidates=1600
+  Original terms (2): [what memcach]
+  Padded terms  (8): [what memcach what what what what what what]
+Round 1, took 22.190879ms
+Round 2, took 3.414088ms
+Round 3, took 8.946184ms
+Stage3 Rerank: Query 1051229 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what megatron call]
+  Padded terms  (8): [what megatron call what what what what what]
+Round 1, took 38.922382ms
+Round 2, took 9.375061ms
+Round 3, took 34.55586ms
+Stage3 Rerank: Query 1051257 MRR@10=0.1667, candidates=1600
+  Original terms (6): [how long flight from chicago cairo]
+  Padded terms  (8): [how long flight from chicago cairo what what]
+Round 1, took 100.790936ms
+Round 2, took 30.971131ms
+Round 3, took 34.447356ms
+Stage3 Rerank: Query 264827 MRR@10=1.0000, candidates=1600
+  Original terms (5): [type coffe drink mocha latt]
+  Padded terms  (8): [type coffe drink mocha latt what what what]
+Round 1, took 77.475207ms
+Round 2, took 22.838971ms
+Round 3, took 35.352971ms
+Stage3 Rerank: Query 526984 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what medjool date]
+  Padded terms  (8): [what medjool date what what what what what]
+Round 1, took 39.367449ms
+Round 2, took 9.203959ms
+Round 3, took 33.901739ms
+Stage3 Rerank: Query 1051279 MRR@10=0.1429, candidates=1600
+  Original terms (4): [what medicin acyclovir us]
+  Padded terms  (8): [what medicin acyclovir us what what what what]
+Round 1, took 57.584628ms
+Round 2, took 18.469153ms
+Round 3, took 33.224414ms
+Stage3 Rerank: Query 1051285 MRR@10=0.0000, candidates=1600
+  Original terms (5): [what medic term neck fusion]
+  Padded terms  (8): [what medic term neck fusion what what what]
+Round 1, took 81.674293ms
+Round 2, took 24.226111ms
+Round 3, took 33.204566ms
+Stage3 Rerank: Query 1051307 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what medic aki]
+  Padded terms  (8): [what medic aki what what what what what]
+Round 1, took 40.963604ms
+Round 2, took 11.067056ms
+Round 3, took 33.381669ms
+Stage3 Rerank: Query 1051339 MRR@10=0.3333, candidates=1600
+Processing query 81: what is mechanical advantages in science terms
+  Original terms (5): [what mechan advantag scienc term]
+  Padded terms  (8): [what mechan advantag scienc term what what what]
+Round 1, took 83.772484ms
+Round 2, took 29.079039ms
+Round 3, took 34.110081ms
+Stage3 Rerank: Query 1051352 MRR@10=0.0000, candidates=1600
+  Original terms (3): [cost child cineplex]
+  Padded terms  (8): [cost child cineplex what what what what what]
+Round 1, took 36.847756ms
+Round 2, took 8.004791ms
+Round 3, took 31.181087ms
+Stage3 Rerank: Query 1051372 MRR@10=0.0000, candidates=1600
+  Original terms (4): [doe suddenlink carri espn3]
+  Padded terms  (8): [doe suddenlink carri espn3 what what what what]
+Round 1, took 59.134927ms
+Round 2, took 11.633624ms
+Round 3, took 33.537133ms
+Stage3 Rerank: Query 2798 MRR@10=0.1250, candidates=1600
+  Original terms (3): [what mean stream]
+  Padded terms  (8): [what mean stream what what what what what]
+Round 1, took 49.319727ms
+Round 2, took 11.891088ms
+Round 3, took 32.593205ms
+Stage3 Rerank: Query 1051422 MRR@10=0.0000, candidates=1600
+  Original terms (3): [what radio miraya]
+  Padded terms  (8): [what radio miraya what what what what what]
+Round 1, took 36.933727ms
+Round 2, took 8.293735ms
+Round 3, took 30.073001ms
+Stage3 Rerank: Query 789292 MRR@10=0.0000, candidates=1600
+  Original terms (6): [what mca get weekli paycheck fake]
+  Padded terms  (8): [what mca get weekli paycheck fake what what]
+Round 1, took 115.908979ms
+Round 2, took 23.3592ms
+Round 3, took 34.631684ms
+Stage3 Rerank: Query 1051475 MRR@10=1.0000, candidates=1600
+  Original terms (3): [what radiofrequ ablat]
+  Padded terms  (8): [what radiofrequ ablat what what what what what]
+Round 1, took 40.153469ms
+Round 2, took 10.189214ms
+Round 3, took 34.151088ms
+Stage3 Rerank: Query 789332 MRR@10=0.1000, candidates=1600
+  Original terms (2): [what maxim]
+  Padded terms  (8): [what maxim what what what what what what]
+Round 1, took 35.888379ms
+Round 2, took 6.354975ms
+Round 3, took 31.226011ms
+Stage3 Rerank: Query 1051520 MRR@10=0.5000, candidates=1600
+  Original terms (2): [what mastoidectomi]
+  Padded terms  (8): [what mastoidectomi what what what what what what]
+Round 1, took 25.07001ms
+Round 2, took 3.395694ms
+Round 3, took 13.783ms
+Stage3 Rerank: Query 1051530 MRR@10=0.0000, candidates=1600
+  Original terms (6): [explain what bone scan what us]
+  Padded terms  (8): [explain what bone scan what us what what]
+Round 1, took 96.556863ms
+Round 2, took 28.564841ms
+Round 3, took 34.560539ms
+Stage3 Rerank: Query 2962 MRR@10=0.3333, candidates=1600
+  Original terms (5): [what marilyn manson music call]
+  Padded terms  (8): [what marilyn manson music call what what what]
+Round 1, took 71.589836ms
+Round 2, took 18.309703ms
+Round 3, took 33.921836ms
+Stage3 Rerank: Query 1051571 MRR@10=0.1250, candidates=1600
+  Original terms (5): [when littl princ book lish]
+  Padded terms  (8): [when littl princ book lish what what what]
+Round 1, took 71.485971ms
+Round 2, took 24.330047ms
+Round 3, took 34.757399ms
+Stage3 Rerank: Query 961705 MRR@10=0.0000, candidates=1600
+  Original terms (5): [what goddess agricultur greek mytholog]
+  Padded terms  (8): [what goddess agricultur greek mytholog what what what]
+Round 1, took 82.614112ms
+Round 2, took 22.601332ms
+Round 3, took 34.104891ms
+Stage3 Rerank: Query 1038859 MRR@10=1.0000, candidates=1600
+  Original terms (4): [proton pump us what]
+  Padded terms  (8): [proton pump us what what what what what]
+Round 1, took 60.068235ms
+Round 2, took 13.818977ms
+Round 3, took 38.209208ms
+Stage3 Rerank: Query 1091234 MRR@10=0.0000, candidates=1600
+  Original terms (4): [what lone star trim]
+  Padded terms  (8): [what lone star trim what what what what]
+Round 1, took 67.450152ms
+Round 2, took 14.202981ms
+Round 3, took 40.611331ms
+Stage3 Rerank: Query 1051723 MRR@10=1.0000, candidates=1600
+  Original terms (5): [who sing take world storm]
+  Padded terms  (8): [who sing take world storm what what what]
+Round 1, took 74.97497ms
+Round 2, took 20.814018ms
+Round 3, took 28.490711ms
+Stage3 Rerank: Query 1051755 MRR@10=1.0000, candidates=1600
+  Original terms (2): [what lmi]
+  Padded terms  (8): [what lmi what what what what what what]
+Round 1, took 22.425631ms
+Round 2, took 4.698286ms
+Round 3, took 16.892204ms
+Stage3 Rerank: Query 1051808 MRR@10=1.0000, candidates=1600
+  Original terms (4): [type ethnic food list]
+  Padded terms  (8): [type ethnic food list what what what what]
+Round 1, took 77.728214ms
+Round 2, took 17.70293ms
+Round 3, took 34.61983ms
+Stage3 Rerank: Query 527568 MRR@10=1.0000, candidates=1600
+  Original terms (5): [who sing song anim anim]
+  Padded terms  (8): [who sing song anim anim what what what]
+Round 1, took 69.963806ms
+Round 2, took 18.682204ms
+Round 3, took 26.147499ms
+Stage3 Rerank: Query 1051886 MRR@10=0.0000, candidates=1600
