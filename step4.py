@@ -98,7 +98,7 @@ def main(args):
     # pca = faiss.read_VectorTransform("pca_768_to_192.faiss")
     query_embeddings, _ = load_queries_embeddings('query_192_float32.npy')#, 'queries_768.npy.ids')
     mrrs = []
-    document_embeddings, idmap = load_embeddings('my_vectors_192_float32.npy', 'my_vectors_768.npy.ids')
+    document_embeddings, idmap = load_embeddings('my_vectors_192_float32.npy', 'my_vectors_192_float32.npy.ids')
     print(document_embeddings.shape, idmap.shape)
     database = {}
     for id, embedding in tqdm(zip(idmap, document_embeddings), total=len(idmap)):

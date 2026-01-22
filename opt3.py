@@ -724,7 +724,7 @@ def experiment(args):
         layout.precompute_stats(adp)
 
         # save layout to storage
-        with open('data/layout_with_stats.json', 'w') as f:
+        with open(f'data/layout_with_stats_{args.B}_{args.r}.json', 'w') as f:
             json.dump({
                 'N': layout.N,
                 'B': layout.B,
@@ -733,8 +733,8 @@ def experiment(args):
             }, f, indent=2)
     else:
         #load from storage:
-        print("Loading precomputed layout from data/layout_with_stats.json...")
-        with open('data/layout_with_stats.json', 'r') as f:
+        print(f"Loading precomputed layout from data/layout_with_stats_{args.B}_{args.r}.json...")
+        with open(f'data/layout_with_stats_{args.B}_{args.r}.json', 'r') as f:
             data = json.load(f)
         
         # --- FIX: Check for consistency ---

@@ -51,14 +51,12 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		return nil, fmt.Errorf("error reading vocab file: %v", err)
 	}
 
-	var vocabRaw map[string]string
+	var vocabRaw map[string]int
 	if err := json.Unmarshal(vocabData, &vocabRaw); err != nil {
 		return nil, fmt.Errorf("error unmarshaling vocab: %v", err)
 	}
 
-	for term, tidStr := range vocabRaw {
-		var tid int
-		fmt.Sscanf(tidStr, "%d", &tid)
+	for term, tid := range vocabRaw {
 		// Convert term to lowercase for case-insensitive matching
 		pre.Vocab[term] = tid
 	}

@@ -42,14 +42,12 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		return nil, fmt.Errorf("error reading vocab file: %v", err)
 	}
 
-	var vocabRaw map[string]string
+	var vocabRaw map[string]int
 	if err := json.Unmarshal(vocabData, &vocabRaw); err != nil {
 		return nil, fmt.Errorf("error unmarshaling vocab: %v", err)
 	}
 
-	for term, tidStr := range vocabRaw {
-		var tid int
-		fmt.Sscanf(tidStr, "%d", &tid)
+	for term, tid := range vocabRaw {
 		// Convert term to lowercase for case-insensitive matching
 		db.Vocab[term] = tid
 		// Add debug logging for term IDs
