@@ -326,14 +326,16 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 	}
 
 	// 3. Execute Batch Query
+	fmt.Printf("[DEBUG] Stage3: Executing PIR batch query with %d blocks\n", len(queryBlocks))
 	responses, err := sr.pir.Query(queryBlocks)
 	if err != nil {
-		fmt.Printf("Stage3 PIR batch query error: %v, falling back to direct read\n", err)
+		fmt.Printf("[DEBUG] Stage3 PIR batch query error: %v, falling back to direct read\n", err)
 		for _, idx := range docIndices {
 			result[idx] = sr.getDocEmbeddingDirect(idx)
 		}
 		return result
 	}
+	fmt.Printf("[DEBUG] Stage3: PIR query succeeded, got %d responses\n", len(responses))
 
 	// 4. Unpack responses into map: PhysicalBlockID -> Data
 	blockData := make(map[uint64][]byte)

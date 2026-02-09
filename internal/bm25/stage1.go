@@ -189,11 +189,13 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 	}
 
 	// Single batch PIR query
+	fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices\n", len(rowIndices))
 	responses, err := db.pir.Query(rowIndices)
 	if err != nil {
-		fmt.Printf("Stage1 batch query error: %v, falling back to direct read\n", err)
+		fmt.Printf("[DEBUG] Stage1 batch query error: %v, falling back to direct read\n", err)
 		return db.getScoreDirect(termIDs, nodeIDs)
 	}
+	fmt.Printf("[DEBUG] Stage1: PIR query succeeded, got %d responses\n", len(responses))
 
 	// Aggregate responses into result map
 	result := make(map[int]map[int][]byte)

@@ -307,12 +307,14 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	}
 
 	// BATCH QUERY - single call for all rows
+	fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices\n", len(rowIndices))
 	responses, err := pre.pir.Query(rowIndices)
 	if err != nil {
-		fmt.Printf("Stage2 batch query error: %v, falling back to direct read\n", err)
+		fmt.Printf("[DEBUG] Stage2 batch query error: %v, falling back to direct read\n", err)
 		// Fallback: use direct method
 		return pre.SumBoundsForTerms(terms, leafNodes)
 	}
+	fmt.Printf("[DEBUG] Stage2: PIR query succeeded, got %d responses\n", len(responses))
 
 	// Process responses
 	for i, req := range requests {
