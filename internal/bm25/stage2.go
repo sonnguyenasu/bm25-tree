@@ -307,6 +307,11 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	}
 
 	// BATCH QUERY - single call for all rows
+	if len(rowIndices) > 0 && len(rowIndices) <= 3 {
+		fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices: %v\n", len(rowIndices), rowIndices)
+	} else if len(rowIndices) > 3 {
+		fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices (first 3): %v\n", len(rowIndices), rowIndices[:3])
+	}
 	fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices\n", len(rowIndices))
 	responses, err := pre.pir.Query(rowIndices)
 	if err != nil {
@@ -320,11 +325,22 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	for i, req := range requests {
 		rowWords := responses[i]
 
-		// Handle miss (all zeros) by falling back to direct read
+		// Handle miss (all zeros) by comparing with direct read
 		if allZeroResponseUint64(rowWords) {
-			rowWords = pre.readRowDirectUint64(req.rowIdx)
-			if allZeroResponseUint64(rowWords) {
-				// Still zero, treat as zero scores (all zeros)
+			// PIR returned all zeros - check if this is a real failure or valid padding
+			directRowWords := pre.readRowDirectUint64(req.rowIdx)
+			
+			// MISMATCH DIAGNOSTIC: Print only if direct read has different data
+			if !allZeroResponseUint64(directRowWords) {
+				// This is a REAL FAILURE - PIR returned zeros but direct has data
+				// Calculate partition and offset for context
+				partitionID := req.rowIdx % uint64(pre.pir.Config().PartitionNum)
+				logicalOffset := req.rowIdx / uint64(pre.pir.Config().PartitionNum)
+				fmt.Printf("[MISMATCH_PIR_FAILURE_S2] rowIdx=%d (partition=%d, logicalOffset=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n", 
+					req.rowIdx, partitionID, logicalOffset, directRowWords[0], i, len(responses))
+				rowWords = directRowWords
+			} else {
+				// Both PIR and direct returned zeros - this is likely valid padding
 				// create empty words corresponding to ceil(pre.R/8) words
 				wordsPerRow := (pre.R + 7) / 8
 				rowWords = make([]uint64, wordsPerRow)

@@ -189,6 +189,11 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 	}
 
 	// Single batch PIR query
+	if len(rowIndices) > 0 && len(rowIndices) <= 3 {
+		fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices: %v\n", len(rowIndices), rowIndices)
+	} else if len(rowIndices) > 3 {
+		fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices (first 3): %v\n", len(rowIndices), rowIndices[:3])
+	}
 	fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices\n", len(rowIndices))
 	responses, err := db.pir.Query(rowIndices)
 	if err != nil {
@@ -206,11 +211,23 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 
 		response := responses[i]
 
-		// Handle miss (all zeros) by falling back to direct read
+		// Handle miss (all zeros) by comparing with direct read
 		if allZeroResponseUint64(response) {
-			response = db.readRowDirectUint64(req.rowIdx)
-			if allZeroResponseUint64(response) {
-				// Still zero, use zero response
+			// PIR returned all zeros - check if this is a real failure or valid padding
+			directResponse := db.readRowDirectUint64(req.rowIdx)
+			
+			// MISMATCH DIAGNOSTIC: Print only if direct read has different data
+			if !allZeroResponseUint64(directResponse) {
+				// This is a REAL FAILURE - PIR returned zeros but direct has data
+				// Calculate partition and offset for context
+				partitionID := req.rowIdx % uint64(db.pir.Config().PartitionNum)
+				logicalOffset := req.rowIdx / uint64(db.pir.Config().PartitionNum)
+				fmt.Printf("[MISMATCH_PIR_FAILURE] rowIdx=%d (partition=%d, logicalOffset=%d, termID=%d, nodeID=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n", 
+					req.rowIdx, partitionID, logicalOffset, req.termID, req.nodeID, directResponse[0], i, len(responses))
+				response = directResponse
+			} else {
+				// Both PIR and direct returned zeros - this is likely valid padding
+				// No message needed; treat as zero response
 				response = make([]uint64, db.R)
 			}
 		}

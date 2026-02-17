@@ -3,11 +3,10 @@ package pianopir
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
-
-//"encoding/binary"
 
 const (
 	RealQueryPerPartition = 2
@@ -17,8 +16,8 @@ const (
 )
 
 type SimpleBatchPianoPIRConfig struct {
-	DBEntryByteNum  uint64 // the number of bytes in a DB entry
-	DBEntrySize     uint64 // the number of uint64 in a DB entry
+	DBEntryByteNum  uint64
+	DBEntrySize     uint64
 	DBSize          uint64
 	BatchSize       uint64
 	PartitionNum    uint64
@@ -27,22 +26,14 @@ type SimpleBatchPianoPIRConfig struct {
 	FailureProbLog2 uint64
 }
 
-// it's a simple batch PIR client
-// it does not guarantee to output all the queries
-// the strategy is simple
-// 1. divide the DB into BatchSize / K partitions
-// 2. for each partition, create a sub PIR class
-// 3a. For each batch of queries, it will first arrange the queries into the partitions.
-//     Each partition will have at most K queries (first come first serve).
-// 3b. For each partition, it makes at most K queries to the sub PIR class
-// 4. It will output the queries in the order of the partitions
-
 type SimpleBatchPianoPIR struct {
 	config *SimpleBatchPianoPIRConfig
 	subPIR []*PianoPIR
 
-	// the following are stats
+	// Permutation Key for scrambling offsets within partitions
+	offsetKey uint64
 
+	// Stats
 	FinishedBatchNum        uint64
 	QueriesMadeInPartition  uint64
 	SupportBatchNum         uint64
@@ -52,15 +43,23 @@ type SimpleBatchPianoPIR struct {
 	commCostPerBatchOffline uint64  // bytes
 }
 
+// gcd computes the greatest common divisor
+func gcd(a, b uint64) uint64 {
+	for b != 0 {
+		t := b
+		b = a % b
+		a = t
+	}
+	return a
+}
+
 func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint64, rawDB []uint64, FailureProbLog2 uint64) *SimpleBatchPianoPIR {
 	DBEntrySize := DBEntryByteNum / 8
 	if len(rawDB) != int(DBSize*DBEntrySize) {
 		log.Fatalf("BatchPIR: len(rawDB) = %v; want %v", len(rawDB), DBSize*DBEntrySize)
 	}
 
-	// create the sub PIR classes
 	PartitionNum := BatchSize / RealQueryPerPartition
-	//PartitionSize := DBSize / PartitionNum and round up
 	PartitionSize := (DBSize + PartitionNum - 1) / PartitionNum
 
 	config := &SimpleBatchPianoPIRConfig{
@@ -70,23 +69,68 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 		BatchSize:       BatchSize,
 		PartitionNum:    PartitionNum,
 		PartitionSize:   PartitionSize,
-		ThreadNum:       ThreadNum,
+		ThreadNum:       8,
 		FailureProbLog2: FailureProbLog2,
 	}
+
+	// --- FIX: SCRAMBLE OFFSETS ---
+	// We need a multiplier coprime to PartitionSize to permute the offsets.
+	// This ensures (i * offsetKey) % PartitionSize is a unique 1-to-1 mapping.
+	offsetKey := uint64(1299827) // Large prime
+	for gcd(offsetKey, PartitionSize) != 1 {
+		offsetKey++
+	}
+	
+	// Allocate padded buffer (PartitionNum * PartitionSize)
+	paddedTotalSize := PartitionNum * PartitionSize * DBEntrySize
+	partitionedDB := make([]uint64, paddedTotalSize)
+
+	var wg sync.WaitGroup
+	wg.Add(int(config.ThreadNum))
+	rowsPerThread := (DBSize + config.ThreadNum - 1) / config.ThreadNum
+
+	for t := uint64(0); t < config.ThreadNum; t++ {
+		go func(tIdx uint64) {
+			defer wg.Done()
+			startRow := tIdx * rowsPerThread
+			endRow := startRow + rowsPerThread
+			if endRow > DBSize {
+				endRow = DBSize
+			}
+
+			for r := startRow; r < endRow; r++ {
+				// 1. Select Partition: Round-Robin (Load Balance)
+				p := r % PartitionNum
+				
+				// 2. Select Offset: Scrambled (Chunk Balance)
+				// We permute the logical offset (r/P) using the coprime key
+				logicalOffset := r / PartitionNum
+				scrambledOffset := (logicalOffset * offsetKey) % PartitionSize
+
+				// Calculate exact memory location
+				destOffset := (p*PartitionSize + scrambledOffset) * DBEntrySize
+				srcOffset := r * DBEntrySize
+
+				if destOffset+DBEntrySize <= uint64(len(partitionedDB)) {
+					copy(partitionedDB[destOffset:destOffset+DBEntrySize], rawDB[srcOffset:srcOffset+DBEntrySize])
+				}
+			}
+		}(t)
+	}
+	wg.Wait()
 
 	subPIR := make([]*PianoPIR, PartitionNum)
 
 	for i := uint64(0); i < PartitionNum; i++ {
-		start := i * PartitionSize
-		end := min((i+1)*PartitionSize, DBSize)
-		// print start and end
-		//fmt.Printf("start: %v, end: %v\n", start, end)
-		subPIR[i] = NewPianoPIR(end-start, DBEntryByteNum, rawDB[start*DBEntrySize:end*DBEntrySize], FailureProbLog2)
+		chunkLen := PartitionSize * DBEntrySize
+		chunkStart := i * PartitionSize * DBEntrySize
+		subPIR[i] = NewPianoPIR(PartitionSize, DBEntryByteNum, partitionedDB[chunkStart:chunkStart+chunkLen], FailureProbLog2)
 	}
 
 	return &SimpleBatchPianoPIR{
 		config:                 config,
 		subPIR:                 subPIR,
+		offsetKey:              offsetKey,
 		FinishedBatchNum:       0,
 		QueriesMadeInPartition: 0,
 	}
@@ -119,10 +163,6 @@ func (p *SimpleBatchPianoPIR) RecordStats(prepTime float64) {
 func (p *SimpleBatchPianoPIR) Preprocessing() {
 	p.PrintInfo()
 
-	// now we do the preprocessing
-	// we need to clock the time
-
-	// we now use p.config.ThreadNum threads to do the preprocessing
 	p.FinishedBatchNum = 0
 	p.QueriesMadeInPartition = 0
 	startTime := time.Now()
@@ -134,14 +174,12 @@ func (p *SimpleBatchPianoPIR) Preprocessing() {
 
 	for tid := uint64(0); tid < p.config.ThreadNum; tid++ {
 		go func(tid uint64) {
+			defer wg.Done()
 			start := tid * perThreadPartitionNum
-			end := min((tid+1)*perThreadPartitionNum, p.config.PartitionNum)
-			//log.Printf("Thread %v preprocessing partitions [%v, %v)\n", tid, start, end)
+			end := min(uint64((tid+1)*perThreadPartitionNum), p.config.PartitionNum)
 			for i := start; i < end; i++ {
 				p.subPIR[i].Preprocessing()
 			}
-			//log.Print("Thread ", tid, " finished preprocessing")
-			wg.Done()
 		}(tid)
 	}
 
@@ -156,161 +194,169 @@ func (p *SimpleBatchPianoPIR) Preprocessing() {
 
 func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 	p.PrintInfo()
-	// directly initialize all subPIR
 	for i := uint64(0); i < p.config.PartitionNum; i++ {
 		p.subPIR[i].DummyPreprocessing()
 	}
-
 	log.Printf("Skipping Prep")
 	p.RecordStats(0)
 }
 
-/// TODO: optimize for multiple batch
-
-// Replace the Query function in batch-pir.go
-
-// func (p *SimpleBatchPianoPIR) Query(idx []uint32) ([][]byte, error) {
-//     // 1. USE BATCH SIZE, NOT PARTITION NUM
-//     // The server is configured for BatchSize (1024), so we must iterate by that.
-//     batchSize := int(p.config.BatchSize)
-//     totalQueries := len(idx)
-
-//     // 2. CEILING DIVISION FORMULA
-//     // (N + B - 1) / B ensures we calculate enough batches to cover the remainder.
-//     numBatches := (totalQueries + batchSize - 1) / batchSize
-
-//     // Pre-allocate results slice
-//     allResults := make([][]byte, 0, totalQueries)
-
-//     for i := 0; i < numBatches; i++ {
-//         start := i * batchSize
-//         end := start + batchSize
-
-//         // Clamp the end index for the last partial batch
-//         if end > totalQueries {
-//             end = totalQueries
-//         }
-
-//         // Get the actual user queries for this iteration
-//         currentBatch := idx[start:end]
-//         realBatchLen := len(currentBatch)
-
-//         // 3. EXPLICIT PADDING (CRITICAL FIX)
-//         // If the batch is smaller than 1024, we must pad it.
-//         // Sending partial batches causes checksum mismatches.
-//         // Padding with 0s causes hash bucket overflows.
-//         if realBatchLen < batchSize {
-//             // Allocate a full-sized batch buffer
-//             paddedBatch := make([]uint32, batchSize)
-//             copy(paddedBatch, currentBatch)
-
-//             // Fill the empty slots with RANDOM indices.
-//             // We use random valid indices to distribute load evenly across hash buckets.
-//             // Using 0 here would crash the server's Cuckoo hashing.
-//             for k := realBatchLen; k < batchSize; k++ {
-//                 // Use a random index within the database range
-//                 paddedBatch[k] = uint32(rand.Intn(int(p.config.DBSize)))
-//             }
-            
-//             // Swap the slice to use the padded version
-//             currentBatch = paddedBatch
-//         }
-
-//         // 4. PERFORM QUERY
-//         // This now always sends exactly 1024 items.
-//         batchResults, err := p.client.BatchQuery(currentBatch)
-//         if err != nil {
-//             return nil, fmt.Errorf("batch query failed at batch %d: %v", i, err)
-//         }
-
-//         // 5. STRIP PADDING
-//         // We only append the results corresponding to the real user queries.
-//         if len(batchResults) >= realBatchLen {
-//             allResults = append(allResults, batchResults[:realBatchLen]...)
-//         } else {
-//             // Safety fallback
-//             allResults = append(allResults, batchResults...)
-//         }
-//     }
-
-//     return allResults, nil
-// }
-
 func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 
-	// first identify in average how many queries in each partition we need to make
+	// COMPREHENSIVE DIAGNOSTIC: Track where all-zeros come from
+	failureReasons := make(map[string]int)
+	totalRealQueries := 0
+	totalPaddingQueries := 0
+	responsesStored := 0
+	allZeroResponses := 0
+	missingResponses := 0
 
-	// this is different from the default
-	// queryNumToMake := len(idx) / int(p.config.PartitionNum)
 	queryNumToMake := (len(idx) + int(p.config.PartitionNum) - 1) / int(p.config.PartitionNum)
-	// first arrange the queries into the partitions
 	partitionQueries := make([][]uint64, p.config.PartitionNum)
-	for i := 0; i < len(idx); i++ {
-		partitionIdx := idx[i] / p.config.PartitionSize
-		partitionQueries[partitionIdx] = append(partitionQueries[partitionIdx], idx[i])
+	
+	// Helper struct to match responses back to original requests
+	// Note: We cannot easily invert the hash, so we store the context
+	type reqCtx struct {
+		partitionID uint64
+		scrambledOffset uint64
+	}
+	
+	// Map LogicalID -> Scrambled Location
+	reqMap := make(map[uint64]reqCtx)
+
+	for _, id := range idx {
+		partID := id % p.config.PartitionNum
+		
+		logicalOffset := id / p.config.PartitionNum
+		scrambledOffset := (logicalOffset * p.offsetKey) % p.config.PartitionSize
+		
+		partitionQueries[partID] = append(partitionQueries[partID], scrambledOffset)
+		reqMap[id] = reqCtx{partID, scrambledOffset}
 	}
 
-	//fmt.Println("partitionQueries: ", partitionQueries)
-
-	// we make a map from index to their responses
+	// We need to look up responses by (PartID, ScrambledOffset)
+	// Combine them into a unique key for the map: (part << 32) | offset
+	// Assuming offset fits in 32 bits (4B * 8B = 32GB partition size limit)
 	responses := make(map[uint64][]uint64)
 
 	for i := uint64(0); i < p.config.PartitionNum; i++ {
-		//start := i * p.config.PartitionSize
-		//end := min((i+1)*p.config.PartitionSize, p.config.DBSize)
-
-		// case 1: if there are not enough queries, just pad with random indices in the partition
-		if len(partitionQueries[i]) < queryNumToMake {
-			for j := len(partitionQueries[i]); j < queryNumToMake; j++ {
-				partitionQueries[i] = append(partitionQueries[i], DefaultValue)
+		actualQueries := partitionQueries[i]
+		padCount := 0
+		if len(actualQueries) < queryNumToMake {
+			padCount = queryNumToMake - len(actualQueries)
+			for k := 0; k < padCount; k++ {
+				partitionQueries[i] = append(partitionQueries[i], 0) // Valid dummy
 			}
 		}
+		totalPaddingQueries += padCount
+		totalRealQueries += len(actualQueries)
 
-		// now we make queryNumToMake queries to the sub PIR
-		for j := uint64(0); j < uint64(queryNumToMake); j++ {
-			if partitionQueries[i][j] == DefaultValue {
-				_, _ = p.subPIR[i].Query(0, false) // just make a dummy query
-			} else {
-				query, _ := p.subPIR[i].Query(partitionQueries[i][j]-i*p.config.PartitionSize, true)
-				//if err != nil {
+		for j := 0; j < len(partitionQueries[i]); j++ {
+			isReal := true
+			if j >= len(actualQueries) {
+				isReal = false
+			}
+			
+			offset := partitionQueries[i][j]
+			val, err := p.subPIR[i].Query(offset, isReal)
 
-				//log.Printf("the queries to this sub pir is: %v, the offset is %v\n", partitionQueries[i], partitionQueries[i][j]-i*p.config.PartitionSize)
-				//log.Printf("All the queries are %v\n", partitionQueries)
-				//log.Printf("SimpleBatchPianoPIR.Query: subPIR[%v].Query(%v) failed: %v\n", i, partitionQueries[i][j], err)
-				//	return nil, err
-				//	}
-				responses[partitionQueries[i][j]] = query
+			// Track if this is an all-zero response
+			isAllZero := true
+			for _, v := range val {
+				if v != 0 {
+					isAllZero = false
+					break
+				}
+			}
+
+			// Retry logic for safety
+			if err != nil {
+				// DIAGNOSTIC: Track failure reason
+				if strings.Contains(err.Error(), "DIAG_MAXQUERYNUM") {
+					failureReasons["MaxQueryNum"]++
+					fmt.Printf("[DIAG] Error caught in batch: %s\n", err.Error())
+				} else if strings.Contains(err.Error(), "DIAG_CHUNKLIMIT") {
+					failureReasons["ChunkLimit"]++
+					fmt.Printf("[DIAG] Error caught in batch: %s\n", err.Error())
+				} else if strings.Contains(err.Error(), "DIAG_NOHINT") {
+					failureReasons["NoHint"]++
+					fmt.Printf("[DIAG] Error caught in batch: %s\n", err.Error())
+				} else if strings.Contains(err.Error(), "QUERY_OUT_OF_BOUNDS") {
+					failureReasons["OutOfBounds"]++
+					fmt.Printf("[CRITICAL] Out-of-bounds error in batch: %s\n", err.Error())
+				} else {
+					failureReasons["Other"]++
+					fmt.Printf("[DIAG] Other error caught in batch: %s\n", err.Error())
+				}
+				
+				p.Preprocessing()
+				val, err = p.subPIR[i].Query(offset, isReal)
+				if err != nil {
+					// Hard failure after retry
+					if isReal {
+						// Don't store failed real queries as zeros - skip them
+						fmt.Printf("[REAL_QUERY_FAILED] Partition=%d, offset=%d will not be stored (failed after retry)\n", i, offset)
+						continue
+					} else {
+						// Padding query failed - use zeros
+						val = make([]uint64, p.config.DBEntrySize)
+					}
+				}
+			}
+			
+			if isReal {
+				// Key = (Partition << 48) | Offset
+				// Support larger offsets
+				key := (i << 48) | offset
+				responses[key] = val
+				responsesStored++
+				
+				// Track if this response is all-zeros
+				if isAllZero {
+					allZeroResponses++
+					// Enhanced diagnostic: log all-zero responses for real queries
+					fmt.Printf("[PARTITION_ZERO] Partition=%d, Offset=%d (real_query_idx=%d/%d), isAllZero=true\n", 
+						i, offset, j, len(actualQueries))
+				}
 			}
 		}
 	}
 
-	// print all the indices in responses
-	//for k, v := range responses {
-	//	fmt.Printf("responses[%v] = %v\n", k, v[0])
-	//	}
-
-	// now we output the responses in the order of the queries
 	ret := make([][]uint64, len(idx))
-	for i := 0; i < len(idx); i++ {
-		if response, ok := responses[idx[i]]; ok {
-			ret[i] = response
+	for i, id := range idx {
+		ctx := reqMap[id]
+		key := (ctx.partitionID << 48) | ctx.scrambledOffset
+		
+		if val, ok := responses[key]; ok {
+			ret[i] = val
 		} else {
-			// otherwise just make a zero response
 			ret[i] = make([]uint64, p.config.DBEntrySize)
-			for j := uint64(0); j < p.config.DBEntrySize; j++ {
-				ret[i][j] = 0
-			}
+			missingResponses++
 		}
 	}
 
-	// now test if the subPIR has reached the max query num, redo the preprocessing
-	// -2 means we want to do the preprocessing before the last query
 	if p.QueriesMadeInPartition >= p.subPIR[0].client.MaxQueryNum-2 {
-		fmt.Printf("Redo preprocessing. Made %v batches (%v queries in a partition), redo the preprocessing\n", p.FinishedBatchNum, p.QueriesMadeInPartition)
+		fmt.Printf("Redo preprocessing. Made %v batches\n", p.FinishedBatchNum)
 		p.Preprocessing()
 	} else {
 		p.FinishedBatchNum += uint64(len(idx) / int(p.config.BatchSize))
 		p.QueriesMadeInPartition += uint64(queryNumToMake)
+	}
+
+	// DIAGNOSTIC: Report failure reason distribution AND zero summary
+	if len(failureReasons) > 0 || allZeroResponses > 0 || missingResponses > 0 {
+		fmt.Printf("[DIAG_SUMMARY] Batch query completed:\n")
+		fmt.Printf("[DIAG_SUMMARY]   Real queries: %d, Padding queries: %d\n", totalRealQueries, totalPaddingQueries)
+		fmt.Printf("[DIAG_SUMMARY]   Responses stored: %d, All-zero responses: %d, Missing responses: %d\n", responsesStored, allZeroResponses, missingResponses)
+		if len(failureReasons) > 0 {
+			fmt.Printf("[DIAG_SUMMARY]   Failure Distribution:\n")
+			totalFailures := 0
+			for reason, count := range failureReasons {
+				totalFailures += count
+				fmt.Printf("[DIAG_SUMMARY]     %s: %d\n", reason, count)
+			}
+			fmt.Printf("[DIAG_SUMMARY]     TOTAL FAILURES: %d\n", totalFailures)
+		}
 	}
 
 	return ret, nil
@@ -342,4 +388,11 @@ func (p *SimpleBatchPianoPIR) PreprocessingTime() float64 {
 
 func (p *SimpleBatchPianoPIR) Config() *SimpleBatchPianoPIRConfig {
 	return p.config
+}
+
+func min(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
 }

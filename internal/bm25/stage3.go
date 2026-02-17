@@ -373,7 +373,12 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 					}
 				}
 				result[docIdx] = emb
+			} else {
+				fmt.Printf("[DEBUG] Stage3: Embedding out of block bounds for docIdx=%d, physicalBlockID=%d, offsetInBlock=%d\n", docIdx, physicalBlockID, offsetInBlock)
 			}
+		} else {
+			fmt.Printf("[DEBUG] Stage3: Block not found in blockData for docIdx=%d, physicalBlockID=%d, falling back to direct read\n", docIdx, physicalBlockID)
+			result[docIdx] = sr.getDocEmbeddingDirect(docIdx)
 		}
 	}
 	// --- BLOCKING & SHUFFLING LOGIC END ---

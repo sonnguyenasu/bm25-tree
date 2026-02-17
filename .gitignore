@@ -11,3 +11,11 @@ exp_setup
 STAGE3_*
 simulation
 indexes
+*.log
+*.go
+markdown
+analyze_*
+monitor*
+quick_check.sh
+run_diagnostic.sh
+

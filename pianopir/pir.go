@@ -73,6 +73,9 @@ func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
 		idx := uint64(offsets[i]) + i*s.config.ChunkSize
 
 		if idx >= s.config.DBSize {
+			// Tail padding: ignore indices beyond DB size.
+			// Query construction can generate indices in [0, ChunkSize*SetSize),
+			// while DBSize may be smaller for the final partial chunk.
 			continue
 		}
 
@@ -254,14 +257,19 @@ func (c *PianoPIRClient) Initialization() {
 	c.localCache = make(map[uint64][]uint64)
 }
 
-// entrySize has to be a multiple of 4 !!!!!!!!!!!!!
 func EntryXor(a []uint64, b []uint64, entrySize uint64) {
+	if entrySize == 0 {
+		return
+	}
 
-	xorSlices(a, b, int(entrySize))
+	vecN := entrySize &^ 3 // largest multiple of 4 <= entrySize
+	if vecN > 0 {
+		xorSlices(a, b, int(vecN))
+	}
 
-	//for i := uint64(0); i < entrySize; i++ {
-	//	a[i] ^= b[i]
-	//	}
+	for i := vecN; i < entrySize; i++ {
+		a[i] ^= b[i]
+	}
 }
 
 func (c *PianoPIRClient) Preprocessing(rawDB []uint64) {
@@ -384,19 +392,20 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 
 	// now we need to make a real query
 	if c.FinishedQueryNum >= c.MaxQueryNum {
-		log.Printf("fnished query = %v", c.FinishedQueryNum)
-		log.Printf("max query num = %v", c.MaxQueryNum)
-		log.Printf("exceed the maximum number of queries")
-		return ret, fmt.Errorf("exceed the maximum number of queries")
+		// DIAGNOSTIC: MaxQueryNum failure
+		errMsg := fmt.Sprintf("DIAG_MAXQUERYNUM|finished=%d|max=%d|idx=%d", c.FinishedQueryNum, c.MaxQueryNum, idx)
+		fmt.Printf("[FAILURE] %s\n", errMsg)
+		return ret, fmt.Errorf(errMsg)
 	}
 
 	chunkId := idx / c.config.ChunkSize
 	offset := idx % c.config.ChunkSize
 
 	if c.QueryHistogram[chunkId] >= c.maxQueryPerChunk {
-		log.Printf("Too many queries in chunk %v", chunkId)
-		log.Printf("Max query per chunk = %v", c.maxQueryPerChunk)
-		return ret, fmt.Errorf("too many queries in chunk %v", chunkId)
+		// DIAGNOSTIC: Chunk query limit failure
+		errMsg := fmt.Sprintf("DIAG_CHUNKLIMIT|chunkId=%d|count=%d|max=%d|idx=%d", chunkId, c.QueryHistogram[chunkId], c.maxQueryPerChunk, idx)
+		fmt.Printf("[FAILURE] %s\n", errMsg)
+		return ret, fmt.Errorf(errMsg)
 	}
 
 	// now we find the hit hint in the primary hint table
@@ -414,8 +423,10 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 	}
 
 	if hitId == DefaultProgramPoint {
-		//log.Printf("No hit hint in the primary hint table, current idx = %v", idx)
-		return ret, fmt.Errorf("no hit hint in the primary hint table")
+		// DIAGNOSTIC: No hit hint failure
+		errMsg := fmt.Sprintf("DIAG_NOHINT|idx=%d|chunkId=%d|offset=%d|primaryHintNum=%d", idx, chunkId, offset, c.primaryHintNum)
+		fmt.Printf("[FAILURE] %s\n", errMsg)
+		return ret, fmt.Errorf(errMsg)
 	}
 
 	// now we expand this hit hint to a full set
@@ -446,6 +457,14 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 	}
 
 	response, err := server.PrivateQuery(querySetOffset)
+
+	// FIX: Properly handle PrivateQuery errors
+	if err != nil {
+		fmt.Printf("[PIR_QUERY_FAILED] idx=%d, chunkId=%d, error: %v\n", idx, chunkId, err)
+		c.FinishedQueryNum += 1
+		c.QueryHistogram[chunkId] += 1
+		return ret, fmt.Errorf("PrivateQuery failed for idx %d: %w", idx, err)
+	}
 
 	// we revert the influence of the replacement
 	EntryXor(response, replVal, c.config.DBEntrySize)
