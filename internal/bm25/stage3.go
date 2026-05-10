@@ -166,6 +166,21 @@ func NewStage3Reranker(
 	sr.QueryEmbeddings = parseQueryEmbeddings(queryData, numQueries, queryEmbedDim, queryBytesPerElem)
 	fmt.Printf("Stage3 Reranker: loaded %d query embeddings (dim=%d, bytes/elem=%d)\n", len(sr.QueryEmbeddings), queryEmbedDim, queryBytesPerElem)
 
+	// Load query ID map if present (query_embed.npy.ids)
+	queryIDMapPath := queryEmbedPath + ".ids"
+	if qidData, err := os.ReadFile(queryIDMapPath); err == nil {
+		queryIDs := parseDocIDs(string(qidData))
+		for i, qid := range queryIDs {
+			if i >= len(sr.QueryEmbeddings) {
+				break
+			}
+			sr.QueryIDMap[qid] = i
+		}
+		fmt.Printf("Stage3 Reranker: loaded %d query IDs from %s\n", len(sr.QueryIDMap), queryIDMapPath)
+	} else {
+		fmt.Printf("Stage3 Reranker: query ID map not found at %s (using query order)\n", queryIDMapPath)
+	}
+
 	// --- NEW: Load Block Permutation Map ---
 	if permutationPath != "" {
 		permData, err := os.ReadFile(permutationPath)
@@ -477,31 +492,41 @@ func (sr *Stage3Reranker) Rerank(
 
 	for _, hit := range hitSubBlocks {
 		for bm25InternalID := hit.Start; bm25InternalID < hit.End; bm25InternalID++ {
-			// Convert BM25 internal ID to external ID
+			// Convert BM25 internal ID to external ID (if docmap available)
 			var externalID string
 			if luceneIdx != nil {
 				if extID, err := luceneIdx.ConvertInternalToExternalID(bm25InternalID); err == nil && extID != 0 {
 					externalID = fmt.Sprintf("%d", extID)
 				} else {
-					// Fallback: use internal ID as string
-					externalID = fmt.Sprintf("%d", bm25InternalID)
+					externalID = ""
 				}
-			} else {
-				// No luceneIdx, use internal ID as-is
-				externalID = fmt.Sprintf("%d", bm25InternalID)
 			}
 
-			// Look up embedding index for this external ID
-			if embIdx, ok := sr.DocIDReverseMap[externalID]; ok {
+			// Look up embedding index by external ID when available
+			if externalID != "" {
+				if embIdx, ok := sr.DocIDReverseMap[externalID]; ok {
+					candidates = append(candidates, docCandidate{
+						bm25InternalID: bm25InternalID,
+						externalID:     externalID,
+						embeddingIdx:   embIdx,
+					})
+					continue
+				}
+			}
+
+			// Fallback: assume BM25 internal ID matches embedding index order
+			if bm25InternalID >= 0 && bm25InternalID < len(sr.DocIDMap) {
+				externalID = sr.DocIDMap[bm25InternalID]
 				candidates = append(candidates, docCandidate{
 					bm25InternalID: bm25InternalID,
 					externalID:     externalID,
-					embeddingIdx:   embIdx,
+					embeddingIdx:   bm25InternalID,
 				})
-			} else {
-				// No embedding found for this doc - skip it
-				// fmt.Printf("WARNING: No embedding found for external ID %s (BM25 internal %d)\n", externalID, bm25InternalID)
+				continue
 			}
+
+			// No embedding found for this doc - skip it
+			// fmt.Printf("WARNING: No embedding found for BM25 internal %d (external=%s)\n", bm25InternalID, externalID)
 		}
 	}
 
