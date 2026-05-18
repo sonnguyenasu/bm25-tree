@@ -473,9 +473,9 @@ func (sr *Stage3Reranker) Rerank(
 	queryIdx int,
 	goldDocIDs map[string]bool,
 	luceneIdx *LuceneIndex,
-) ([]string, []float32, float32) {
+) ([]string, []float32, float32, float32) {
 	if queryIdx < 0 || queryIdx >= len(sr.QueryEmbeddings) {
-		return nil, nil, 0
+		return nil, nil, 0, 0
 	}
 
 	queryEmb := sr.QueryEmbeddings[queryIdx]
@@ -531,7 +531,7 @@ func (sr *Stage3Reranker) Rerank(
 	}
 
 	if len(candidates) == 0 {
-		return nil, nil, 0
+		return nil, nil, 0, 0
 	}
 
 	// Debug: check if gold doc is in candidate pool
@@ -622,7 +622,25 @@ func (sr *Stage3Reranker) Rerank(
 		scores[i] = s.score
 	}
 
-	// Compute MRR@10 if gold set provided
+	// Diagnostic: report the best (lowest) rank of any gold doc
+	if Debug && len(goldDocIDs) > 0 {
+		bestRank := -1
+		bestScore := float32(0)
+		for i, docID := range docIDs {
+			if goldDocIDs[docID] {
+				bestRank = i + 1
+				bestScore = scores[i]
+				break
+			}
+		}
+		if bestRank > 0 {
+			Debugf("DEBUG Stage3: best gold rank=%d score=%.4f\n", bestRank, bestScore)
+		} else {
+			Debugf("DEBUG Stage3: no gold doc found in reranked list\n")
+		}
+	}
+
+	// Compute MRR@10 and nDCG@10 if gold set provided
 	// Debug: print gold-set sample keys and top returned docIDs to diagnose mismatches
 	if Debug && len(goldDocIDs) > 0 { // only debug when gold docs exist
 		Debugf("DEBUG Stage3: gold size=%d\n", len(goldDocIDs))
@@ -662,7 +680,32 @@ func (sr *Stage3Reranker) Rerank(
 		}
 	}
 
-	return docIDs, scores, mrr
+	var ndcg float32 = 0
+	if len(goldDocIDs) > 0 {
+		k := 10
+		if len(docIDs) < k {
+			k = len(docIDs)
+		}
+		var dcg float64 = 0
+		for rank := 0; rank < k; rank++ {
+			if _, ok := goldDocIDs[docIDs[rank]]; ok {
+				dcg += 1.0 / math.Log2(float64(rank+2))
+			}
+		}
+		idealK := k
+		if len(goldDocIDs) < idealK {
+			idealK = len(goldDocIDs)
+		}
+		var idcg float64 = 0
+		for rank := 0; rank < idealK; rank++ {
+			idcg += 1.0 / math.Log2(float64(rank+2))
+		}
+		if idcg > 0 {
+			ndcg = float32(dcg / idcg)
+		}
+	}
+
+	return docIDs, scores, mrr, ndcg
 }
 
 // Close releases resources
