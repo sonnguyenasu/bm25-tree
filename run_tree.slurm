@@ -164,7 +164,7 @@ echo "Running real tree search..."
 ./bm25-search \
     --B "$B_val" \
     --r "$r_val" \
-    --k_candidates "$k_val" \
+    --k "$k_val" \
     --layout-path "$LAYOUT_PATH" \
     --qrels "$QRELS" \
     --index "$INDEX" \
@@ -193,8 +193,8 @@ cat  "$LOG_FILE"
 # Parse the logs and move outputs
 # python parse_log.py "$LOG_FILE" "$k_val"
 python make_json.py --log_file "$LOG_FILE" --out "$OUT_DIR/metadata.json" --k "$k_val"
-mv approx_precompute_reranked_200.tsv "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}_rerank.tsv" || true
-mv approx_precompute_200.tsv "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}.tsv" || true
+mv "approx_precompute_reranked_$k_val.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}_rerank.tsv" || true
+mv "approx_precompute_$k_val.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}.tsv" || true
 
 # Copy SLURM logs
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true

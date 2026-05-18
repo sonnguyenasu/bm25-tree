@@ -109,9 +109,9 @@ def parse_log_to_json(log_file, out_file, k=10):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Parse log file and save metrics to JSON.")
-    parser.add_argument("log_file", help="Path to the input log file")
+    parser.add_argument("--log_file", help="Path to the input log file")
     parser.add_argument("--out", required=True, help="Path to save the output JSON (e.g., metadata.json)")
-    parser.add_argument("-k", type=int, default=10, help="k value for MRR (default: 10)")
+    parser.add_argument("--k", type=int, default=10, help="k value for MRR (default: 10)")
 
     args = parser.parse_args()
 
