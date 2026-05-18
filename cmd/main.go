@@ -41,8 +41,10 @@ func main() {
 	docIDMap := flag.String("doc-id-map", "", "Path to document ID map (one ID per line)")
 	queryEmbed := flag.String("query-embed", "", "Path to query embeddings (npy float32 file)")
 	embedDim := flag.Int("embed-dim", 192, "Embedding dimensionality for Stage3 reranker")
+	blockPermPath := flag.String("block-permutation", "data/block_permutations.json", "Path to block permutation map for Stage3 PIR")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	queryWords := flag.Int("query-words", 8, "Fixed number of words in query (pad with dummy if needed)")
+	constantPIRWork := flag.Bool("constant-pir-work", false, "Pad Stage1/Stage2 PIR requests with dummy queries to reduce per-query workload variance")
 
 	// Stage2 hit load/save flags for Stage3-only runs
 	loadStage2Hits := flag.String("load-stage2-hits", "", "Path to JSON file containing saved Stage2 hitSubs (map qid->[]HitSubBlock)")
@@ -166,8 +168,8 @@ func main() {
 	analyzedQueriesPath := strings.Replace(*queries, ".tsv", ".analyzed.json", 1)
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
-	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "data/block_permutations.json", *embedDim, enablePIR, uint64(32))
+		if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
+			sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPermPath, *embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {
@@ -176,7 +178,7 @@ func main() {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords)
+	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork)
 }
 
 type AnalyzedQuery struct {
@@ -231,6 +233,7 @@ func processAnalyzedQueries(
 	saveStage2HitsPath string,
 	skipStage2 bool,
 	queryWords int,
+	constantPIRWork bool,
 ) {
 	// Read analyzed queries JSON file
 	data, err := os.ReadFile(queriesPath)
@@ -292,6 +295,11 @@ func processAnalyzedQueries(
 	}
 
 	// Process each analyzed query
+	stage2GoldFound := 0
+	stage2GoldMissing := 0
+	stage2GoldNoHits := 0
+	stage2MaxInternal := 0
+	stage2OutOfRange := 0
 	queryCount := 0
 	for _, query := range analyzedQueries {
 		if maxQueries > 0 && queryCount >= maxQueries {
@@ -306,6 +314,10 @@ func processAnalyzedQueries(
 		// But track original length so padding doesn't affect scores
 		query.Terms, query.OriginalLength = normalizeQueryTerms(query.Terms, queryWords)
 		realTerms := query.Terms[:query.OriginalLength] // Terms to use for actual scoring
+		workTerms := realTerms
+		if constantPIRWork {
+			workTerms = query.Terms
+		}
 		
 		if bm25.Debug || true {
 			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
@@ -332,7 +344,7 @@ func processAnalyzedQueries(
 		// Round 1: Beam search (use only real terms, not padding)
 		// time the runtime
 		start := time.Now()
-		leafNodes := bm25.Round1BeamPrecomputed(layout, realTerms, L, stage1DB)
+		leafNodes := bm25.Round1BeamPrecomputedWithWorkTerms(layout, realTerms, workTerms, L, stage1DB, constantPIRWork)
 		elapsed := time.Since(start)
 		fmt.Printf("Round 1, took %s\n", elapsed)
 
@@ -354,7 +366,7 @@ func processAnalyzedQueries(
 		} else {
 			// record runtime (use only real terms, not padding)
 			timeStart := time.Now()
-			hitSubs = bm25.Round2BMWPrecomputed(layout, leafNodes, realTerms, s, kCandidates, stage2DB)
+			hitSubs = bm25.Round2BMWPrecomputedWithWorkTerms(layout, leafNodes, realTerms, workTerms, s, kCandidates, stage2DB, constantPIRWork)
 			timeElapsed := time.Since(timeStart)
 			fmt.Printf("Round 2, took %s\n", timeElapsed)
 			// If requested, save hits for this query
@@ -386,8 +398,15 @@ func processAnalyzedQueries(
 
 		// If stage3 reranker is available, rerank and write reranked results
 		if stage3 != nil {
-			// Assume query embeddings are in same order as analyzedQueries; use queryCount as index
+			// Prefer mapping by query ID if a query ID map is available
 			qIdx := queryCount
+			if len(stage3.QueryIDMap) > 0 {
+				if idx, ok := stage3.QueryIDMap[query.ID]; ok {
+					qIdx = idx
+				} else if bm25.Debug {
+					fmt.Printf("DEBUG: query ID %s not found in query ID map; using index %d\n", query.ID, qIdx)
+				}
+			}
 			// Prepare gold set for Stage3 (if available) so Stage3 can include debug and MRR
 			var goldSetForStage3 map[string]bool = nil
 			if qrelsMap != nil {
@@ -396,55 +415,69 @@ func processAnalyzedQueries(
 
 			// Check whether any gold doc exists in the Stage2 candidate pool (hitSubs)
 			if goldSetForStage3 != nil && len(goldSetForStage3) > 0 {
-				found := false
-				// create a small helper to test a single internal docID
-				for _, hs := range hitSubs {
-					for docID := hs.Start; docID < hs.End; docID++ {
-						// Try luceneIdx conversion first (internal -> external)
-						if luceneIdx != nil {
-							if ext, err := luceneIdx.ConvertInternalToExternalID(docID); err == nil && ext != 0 {
-								if goldSetForStage3[fmt.Sprintf("%d", ext)] {
+				if len(hitSubs) == 0 {
+					stage2GoldNoHits++
+				} else {
+					found := false
+					maxInternal := 0
+					outOfRange := 0
+					for _, hs := range hitSubs {
+						for docID := hs.Start; docID < hs.End; docID++ {
+							if docID > maxInternal {
+								maxInternal = docID
+							}
+							if docID >= len(stage3.DocIDMap) {
+								outOfRange++
+								continue
+							}
+							// Try luceneIdx conversion first (internal -> external)
+							if luceneIdx != nil {
+								if ext, err := luceneIdx.ConvertInternalToExternalID(docID); err == nil && ext != 0 {
+									if goldSetForStage3[fmt.Sprintf("%d", ext)] {
+										found = true
+										break
+									}
+								}
+							}
+							// If stage3 has a DocIDMap, try that mapping
+							if !found && stage3 != nil && len(stage3.DocIDMap) > docID {
+								if goldSetForStage3[stage3.DocIDMap[docID]] {
+									found = true
+									break
+								}
+							}
+							// As a fallback, compare internal numeric id string
+							if !found {
+								if goldSetForStage3[fmt.Sprintf("%d", docID)] {
 									found = true
 									break
 								}
 							}
 						}
-						// If stage3 has a DocIDMap, try that mapping
-						if !found && stage3 != nil && len(stage3.DocIDMap) > docID {
-							if goldSetForStage3[stage3.DocIDMap[docID]] {
-								found = true
-								break
-							}
-						}
-						// As a fallback, compare internal numeric id string
-						if !found {
-							if goldSetForStage3[fmt.Sprintf("%d", docID)] {
-								found = true
-								break
-							}
+						if found {
+							break
 						}
 					}
 					if found {
-						break
-					}
-				}
-				if bm25.Debug {
-					if found {
-						fmt.Printf("DEBUG: gold doc FOUND in Stage2 candidates for query %s\n", query.ID)
+						stage2GoldFound++
 					} else {
-						fmt.Printf("DEBUG: gold doc NOT FOUND in Stage2 candidates for query %s\n", query.ID)
+						stage2GoldMissing++
 					}
+					if maxInternal > stage2MaxInternal {
+						stage2MaxInternal = maxInternal
+					}
+					stage2OutOfRange += outOfRange
 				}
 			}
 			// Get reranked IDs/scores from Stage3
 			
 			start = time.Now()
-			docIDs, scores, mrrFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
+			docIDs, scores, mrrFromStage3, ndcgFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
 			elapsed = time.Since(start)
 			fmt.Printf("Round 3, took %s\n", elapsed)
 
 			// Stage3 reranker already returns external doc IDs via DocIDMap, so no conversion needed
-			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, len(docIDs))
+			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f nDCG@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, ndcgFromStage3, len(docIDs))
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
 				writeResultsReranked(query.ID, docIDs, scores, k)
@@ -454,6 +487,12 @@ func processAnalyzedQueries(
 			writeResults(query.ID, hitSubs, k, luceneIdx)
 		}
 		queryCount++
+	}
+
+	// Summary diagnostics for Stage2 gold recall and ID range
+	if stage3 != nil && qrelsMap != nil {
+		fmt.Printf("Stage2 gold recall summary: found=%d missing=%d no_hits=%d\n", stage2GoldFound, stage2GoldMissing, stage2GoldNoHits)
+		fmt.Printf("Stage2 candidate ID range: max_internal=%d docidmap_len=%d out_of_range=%d\n", stage2MaxInternal, len(stage3.DocIDMap), stage2OutOfRange)
 	}
 
 	// If we collected Stage2 hits to save, write them out as JSON

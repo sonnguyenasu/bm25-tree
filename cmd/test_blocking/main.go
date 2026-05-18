@@ -88,7 +88,7 @@ func main() {
 		{Start: 100, End: 108, ScoreUB: 1.0},
 	}
 	goldDocs := make(map[string]bool)
-	docIDs, scores, mrr := sr.Rerank(hitSubBlocks, 0, goldDocs, nil)
+	docIDs, scores, mrr, ndcg := sr.Rerank(hitSubBlocks, 0, goldDocs, nil)
 
 	fmt.Printf("  Input: %d documents to rerank\n", 8)
 	fmt.Printf("  Output: %d documents ranked\n", len(docIDs))
@@ -99,6 +99,7 @@ func main() {
 		}
 	}
 	fmt.Printf("  MRR@10: %.4f\n", mrr)
+	fmt.Printf("  nDCG@10: %.4f\n", ndcg)
 
 	if len(docIDs) > 0 {
 		fmt.Println("  ✓ PASS: Reranking completed successfully\n")
