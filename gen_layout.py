@@ -23,9 +23,9 @@ def generate_layout(N, B, r):
     return layout
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
-        print("Usage: gen_layout.py <N> <B> <r>")
-        print("Example: gen_layout.py 8841823 32 32")
+    if len(sys.argv) != 5:
+        print("Usage: gen_layout.py <N> <B> <r> <output_file>")
+        print("Example: gen_layout.py 8841823 32 32 layout.json")
         sys.exit(1)
     
     N = int(sys.argv[1])
@@ -34,10 +34,10 @@ if __name__ == '__main__':
     
     layout = generate_layout(N, B, r)
     
-    with open(f'data/layout_with_stats_{B}_{r}.json', 'w') as f:
+    with open(sys.argv[4], 'w') as f:
         json.dump(layout, f, indent=2)
     
-    print(f"Generated layout_with_stats_{B}_{r}.json:")
+    print(f"Generated {sys.argv[4]}:")
     print(f"  N={N}, B={B}, r={r}")
     print(f"  num_leaves={math.ceil(N / B)}")
     print(f"  height={math.ceil(math.log(math.ceil(N / B), r)) if r > 1 else 0}")
