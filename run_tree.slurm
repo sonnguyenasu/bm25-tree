@@ -7,8 +7,7 @@
 #SBATCH --mem=500G
 #SBATCH --time=0-05:30:00
 
-# Total Jobs: 14 (Indices 0 through 13)
-#SBATCH --array=0-13
+#SBATCH --array=0-15
 #SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
 
@@ -20,21 +19,35 @@ module load hosts/hopper
 module load gnu9/9.3.0
 export PATH=$PATH:/usr/local/go/bin
 
-# --- PARALLEL ARRAYS FOR ABLATION STUDY ---
-# Index:      0       1       2       3       4       5       6       7       8       | 9       10      11      | 12         13
-# Test:       VARY B & R (msmarco, k=50)                                              | VARY K (B=32, r=128)  | VARY DATA
-DATA_ARR=(    msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco   msmarco msmarco msmarco   scifact    trec-covid )
-B_ARR=(       16      16      16      32      32      32      64      64      64        32      32      32        32         32         )
-R_ARR=(       8       32      128     8       32      128     8       32      128       128     128     128       128        128        )
-K_ARR=(       50      50      50      50      50      50      50      50      50        100     500     1000      50         50         )
+# 1. VARY B & R
+# Index:      0       1       2       3       4       5       6       7       8
+# Test:       VARY B & R (msmarco, k=100)
+DATA_ARR=(    msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco )
+B_ARR=(       16      16      16      32      32      32      64      64      64      )
+R_ARR=(       8       32      128     8       32      128     8       32      128     )
+K_ARR=(       100     100     100     100     100     100     100     100     100     )
 
+# 2. VARY K (B=32, r=128, msmarco)
+# Index:      9       10      11      12      13      14
+# Test:       VARY K
+DATA_ARR+=(   msmarco msmarco msmarco msmarco msmarco msmarco )
+B_ARR+=(      32      32      32      32      32      32      )
+R_ARR+=(      128     128     128     128     128     128     )
+K_ARR+=(      10      50      100     500     1000    5000    )
+
+# 3. VARY DATA (B=32, r=128, k=100)
+# Index:      15         16
+# Test:       VARY DATA
+DATA_ARR+=(   scifact    trec-covid )
+B_ARR+=(      32         32         )
+R_ARR+=(      128        128        )
+K_ARR+=(      100        100        )
 task_id=$SLURM_ARRAY_TASK_ID
 
 dataset=${DATA_ARR[$task_id]}
 B_val=${B_ARR[$task_id]}
 r_val=${R_ARR[$task_id]}
 k_val=${K_ARR[$task_id]}
-BLOCK_PERMS="../datasets/tree/scifact-all/data/scifact_block_permutations.json"
 
 if [ "$dataset" == "msmarco" ]; then
     DB_SIZE=8841823
@@ -67,6 +80,7 @@ if [ "$dataset" == "msmarco" ]; then
     STAGE2_DATA="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_stage2/data.bin"
     STAGE2_IDMAP="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_stage2/idmap.bin"
     VOCAB="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_vocab.json"
+    BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
 
 elif [ "$dataset" == "scifact" ]; then
     DB_SIZE=5183
