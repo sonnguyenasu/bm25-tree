@@ -51,6 +51,8 @@ func main() {
 	saveStage2Hits := flag.String("save-stage2-hits", "", "If set, save computed Stage2 hitSubs to this JSON file")
 	skipStage2 := flag.Bool("skip-stage2", false, "If set, do not initialize Stage2 DB (use --load-stage2-hits to provide hits)")
 
+	resultsPath := flag.String("output-tsv-path", "", "Where to save the tsv to")
+
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
 	bm25.Debug = *debug
@@ -90,8 +92,8 @@ func main() {
 	var stage2DB *bm25.Stage2Precomputed = nil
 	if !*skipStage2 && *loadStage2Hits == "" {
 		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
-			*stage2DataBin,//"data/stage2/data.bin",
-			*stage2IdmapBin,//"data/stage2/idmap.bin",
+			*stage2DataBin,  //"data/stage2/data.bin",
+			*stage2IdmapBin, //"data/stage2/idmap.bin",
 			*vocab,
 			*B,
 			*s,
@@ -118,7 +120,7 @@ func main() {
 	var layout *bm25.LayoutWithStats
 	if *precompute {
 		// Load from file
-		layout, err = loadLayout(*layoutPath)//"./data/layout_with_stats.json")
+		layout, err = loadLayout(*layoutPath) //"./data/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
@@ -168,8 +170,8 @@ func main() {
 	analyzedQueriesPath := strings.Replace(*queries, ".tsv", ".analyzed.json", 1)
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
-		if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-			sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPermPath, *embedDim, enablePIR, uint64(32))
+	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
+		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPermPath, *embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {
@@ -178,7 +180,7 @@ func main() {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork)
+	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork, resultsPath)
 }
 
 type AnalyzedQuery struct {
@@ -196,9 +198,9 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	if targetLength <= 0 {
 		return terms, originalLen
 	}
-	
+
 	normalized := make([]string, targetLength)
-	
+
 	if len(terms) >= targetLength {
 		// Truncate if too many terms
 		copy(normalized, terms[:targetLength])
@@ -216,25 +218,7 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	}
 }
 
-func processAnalyzedQueries(
-	layout *bm25.LayoutWithStats,
-	stage1DB *bm25.Stage1PIRDB,
-	stage2DB *bm25.Stage2Precomputed,
-	luceneIdx *bm25.LuceneIndex,
-	queriesPath string,
-	maxQueries int,
-	L int,
-	s int,
-	kCandidates int,
-	k int,
-	stage3 *bm25.Stage3Reranker,
-	qrelsPath string,
-	loadStage2HitsPath string,
-	saveStage2HitsPath string,
-	skipStage2 bool,
-	queryWords int,
-	constantPIRWork bool,
-) {
+func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1PIRDB, stage2DB *bm25.Stage2Precomputed, luceneIdx *bm25.LuceneIndex, queriesPath string, maxQueries int, L int, s int, kCandidates int, k int, stage3 *bm25.Stage3Reranker, qrelsPath string, loadStage2HitsPath string, saveStage2HitsPath string, skipStage2 bool, queryWords int, constantPIRWork bool, resultsPath *string) {
 	// Read analyzed queries JSON file
 	data, err := os.ReadFile(queriesPath)
 	if err != nil {
@@ -318,7 +302,7 @@ func processAnalyzedQueries(
 		if constantPIRWork {
 			workTerms = query.Terms
 		}
-		
+
 		if bm25.Debug || true {
 			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
 			if len(query.Terms) > query.OriginalLength {
@@ -470,7 +454,7 @@ func processAnalyzedQueries(
 				}
 			}
 			// Get reranked IDs/scores from Stage3
-			
+
 			start = time.Now()
 			docIDs, scores, mrrFromStage3, ndcgFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
 			elapsed = time.Since(start)
@@ -484,7 +468,7 @@ func processAnalyzedQueries(
 			}
 		} else {
 			// Write original hitSubs results
-			writeResults(query.ID, hitSubs, k, luceneIdx)
+			writeResults(query.ID, hitSubs, k, luceneIdx, resultsPath)
 		}
 		queryCount++
 	}
@@ -597,9 +581,9 @@ func getNumDocs(indexPath string) int {
 
 // Removed unused function processQueries
 
-func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex) int {
+func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex, resultsPath *string) int {
 	// Open results file in append mode
-	f, err := os.OpenFile(fmt.Sprintf("approx_precompute_%d.tsv", k), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(*resultsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening results file: %v\n", err)
 		return 0
