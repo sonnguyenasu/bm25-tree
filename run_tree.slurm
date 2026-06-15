@@ -213,6 +213,7 @@ echo "Running real tree search..."
     --vocab "$VOCAB" \
     --query-words 8 \
     --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE"
+    --output-tsv-path "$OUT_DIR/go_results.tsv"
 
 elapsed_time=$SECONDS
 echo "Time elapsed: $elapsed_time seconds"
@@ -224,8 +225,6 @@ cat  "$LOG_FILE"
 # Parse the logs and move outputs
 # python parse_log.py "$LOG_FILE" "$k_val"
 python make_json.py --log_file "$LOG_FILE" --out "$OUT_DIR/metadata.json" --k "$k_val"
-mv "approx_precompute_reranked_${k_val}.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}_rerank.tsv" || true
-mv "approx_precompute_${k_val}.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}.tsv" || true
 
 # Copy SLURM logs
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true
