@@ -1,10 +1,10 @@
 #!/bin/bash -l
 #SBATCH --job-name=Tree_Ablation
-#SBATCH --partition=bigmem
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=500G
+#SBATCH --mem=150G
 #SBATCH --time=0-05:30:00
 
 #SBATCH --array=0-15
@@ -49,77 +49,94 @@ B_val=${B_ARR[$task_id]}
 r_val=${R_ARR[$task_id]}
 k_val=${K_ARR[$task_id]}
 
+DATA_ROOT="data/"
+
 if [ "$dataset" == "msmarco" ]; then
     DB_SIZE=8841823
     MAX_QUERIES=6980
     EMBED_DIM=192
-    DATA_ROOT="../datasets/tree/msmarco-all"
-
-    # Dynamically adapt paths for the b64 structure
-    if [ "$B_val" == "64" ]; then
-        SUB_DIR="b64"
-        PREFIX="cluster_golang"
-    else
-        # Fallback to standard exp_setup layout for B=16 and B=32
-        EXP_TYPE="exp_cluster"  # Toggle to "exp_lucene" if needed
-        SUB_DIR="exp_setup/${EXP_TYPE}"
-        PREFIX="cluster_golang" # Toggle to "lucene_golang" if needed
-    fi
 
     LAYOUT_PATH="${DATA_ROOT}/layout_with_stats_${B_val}_${r_val}.json"
+
+    # These files have moved directly into the data/ folder
     QRELS="${DATA_ROOT}/qrels.dev.small.tsv"
-    INDEX="${DATA_ROOT}/msmarco_reordered"
     QUERIES="${DATA_ROOT}/queries.dev.small.tsv"
     DOC_EMBED="${DATA_ROOT}/stage3_doc_aligned_shuffle.npy"
     DOC_ID_MAP="${DATA_ROOT}/stage3_doc_aligned.npy.ids"
     QUERY_EMBED="${DATA_ROOT}/stage3_query.npy"
+    BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
 
-    # Updated paths using dynamic sub-directories
+    # Pointing directly to the directory with the Lucene segments
+    INDEX="${DATA_ROOT}/msmarco_reordered"
+
+    # All cluster configurations (including b64) are now uniformly in exp_cluster
+    SUB_DIR="exp_setup/exp_cluster" # Toggle to "exp_lucene" if needed
+    PREFIX="cluster_golang" # Toggle to "lucene_golang" if needed
+
     STAGE1_DATA="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_data.bin"
     STAGE1_IDMAP="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_idmap.bin"
     STAGE2_DATA="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_stage2/data.bin"
     STAGE2_IDMAP="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_stage2/idmap.bin"
     VOCAB="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_vocab.json"
-    BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
+
 
 elif [ "$dataset" == "scifact" ]; then
     DB_SIZE=5183
     MAX_QUERIES=1109
     EMBED_DIM=192
-    DATA_ROOT="../datasets/tree/scifact-all"
-    LAYOUT_PATH="${DATA_ROOT}/data/scifact/layout_with_stats_${B_val}_${r_val}.json"
-    QRELS="${DATA_ROOT}/data/scifact/qrels.trec"
-    INDEX="${DATA_ROOT}/indexes/scifact"
-    QUERIES="${DATA_ROOT}/data/scifact/queries.tsv"
-    DOC_EMBED="${DATA_ROOT}/my_scifact_vectors_192_float32.npy"
-    DOC_ID_MAP="${DATA_ROOT}/my_scifact_vectors_192_float32.npy.ids"
-    QUERY_EMBED="${DATA_ROOT}/query_scifact.npy"
-    STAGE1_DATA="${DATA_ROOT}/data/scifact/stage1_b${B_val}_r${r_val}_data.bin"
-    STAGE1_IDMAP="${DATA_ROOT}/data/scifact/stage1_b${B_val}_r${r_val}_idmap.bin"
-    STAGE2_DATA="${DATA_ROOT}/data/scifact/stage2_b${B_val}_r${r_val}/data.bin"
-    STAGE2_IDMAP="${DATA_ROOT}/data/scifact/stage2_b${B_val}_r${r_val}/idmap.bin"
-    VOCAB="${DATA_ROOT}/data/scifact/stage1_b${B_val}_r${r_val}_vocab.json"
-    BLOCK_PERMS="${DATA_ROOT}/data/scifact_block_permutations.json"
+
+    # Using DATA_DIR to avoid overwriting the global DATA_ROOT="data/"
+    DATA_DIR="data/scifact"
+    LAYOUT_PATH="${DATA_DIR}/layout_with_stats_${B_val}_${r_val}.json"
+
+    QRELS="${DATA_DIR}/qrels.trec"
+    QUERIES="${DATA_DIR}/queries.tsv"
+
+    # The index is one level up in the main datasets directory
+    INDEX="../index_scifact"
+
+    # These vectors are sitting in your current bm25-tree directory
+    DOC_EMBED="./my_scifact_vectors_192_float32.npy"
+    DOC_ID_MAP="./my_scifact_vectors_192_float32.npy.ids"
+    QUERY_EMBED="./query_scifact.npy"
+
+    STAGE1_DATA="${DATA_DIR}/stage1_b${B_val}_r${r_val}_data.bin"
+    STAGE1_IDMAP="${DATA_DIR}/stage1_b${B_val}_r${r_val}_idmap.bin"
+    STAGE2_DATA="${DATA_DIR}/stage2_b${B_val}_r${r_val}/data.bin"
+    STAGE2_IDMAP="${DATA_DIR}/stage2_b${B_val}_r${r_val}/idmap.bin"
+    VOCAB="${DATA_DIR}/stage1_b${B_val}_r${r_val}_vocab.json"
+
+    # This sits in the main data/ directory
+    BLOCK_PERMS="${DATA_ROOT}/scifact_block_permutations.json"
 
 
 elif [ "$dataset" == "trec-covid" ]; then
     DB_SIZE=171332
     MAX_QUERIES=50
     EMBED_DIM=384
-    DATA_ROOT="../datasets/tree/trec-covid-all"
-    LAYOUT_PATH="${DATA_ROOT}/data/trec-covid/layout_with_stats_${B_val}_${r_val}.json"
-    QRELS="${DATA_ROOT}/data/trec-covid/qrels.trec"
-    INDEX="${DATA_ROOT}/indexes/trec-covid"
-    QUERIES="${DATA_ROOT}/data/trec-covid/queries.tsv"
-    DOC_EMBED="${DATA_ROOT}/data/trec-covid/my_vectors_384_float32.npy"
-    DOC_ID_MAP="${DATA_ROOT}/data/trec-covid/my_vectors_384_float32.npy.ids"
-    QUERY_EMBED="${DATA_ROOT}/query_trec.npy"
-    STAGE1_DATA="${DATA_ROOT}/data/trec-covid/stage1_b${B_val}_r${r_val}_data.bin"
-    STAGE1_IDMAP="${DATA_ROOT}/data/trec-covid/stage1_b${B_val}_r${r_val}_idmap.bin"
-    STAGE2_DATA="${DATA_ROOT}/data/trec-covid/stage2_b${B_val}_r${r_val}/data.bin"
-    STAGE2_IDMAP="${DATA_ROOT}/data/trec-covid/stage2_b${B_val}_r${r_val}/idmap.bin"
-    VOCAB="${DATA_ROOT}/data/trec-covid/stage1_b${B_val}_r${r_val}_vocab.json"
-    BLOCK_PERMS="${DATA_ROOT}/data/trec_block_permutations.json"
+
+    DATA_DIR="data/trec-covid"
+    LAYOUT_PATH="${DATA_DIR}/layout_with_stats_${B_val}_${r_val}.json"
+
+    QRELS="${DATA_DIR}/qrels.trec"
+    QUERIES="${DATA_DIR}/queries.tsv"
+
+    # The index is one level up in the main datasets directory
+    INDEX="../index_trec_covid"
+
+    # Document embeddings are in data/trec-covid, but query embeddings are in the current dir
+    DOC_EMBED="${DATA_DIR}/my_vectors_384_float32.npy"
+    DOC_ID_MAP="${DATA_DIR}/my_vectors_384_float32.npy.ids"
+    QUERY_EMBED="./query_trec.npy"
+
+    STAGE1_DATA="${DATA_DIR}/stage1_b${B_val}_r${r_val}_data.bin"
+    STAGE1_IDMAP="${DATA_DIR}/stage1_b${B_val}_r${r_val}_idmap.bin"
+    STAGE2_DATA="${DATA_DIR}/stage2_b${B_val}_r${r_val}/data.bin"
+    STAGE2_IDMAP="${DATA_DIR}/stage2_b${B_val}_r${r_val}/idmap.bin"
+    VOCAB="${DATA_DIR}/stage1_b${B_val}_r${r_val}_vocab.json"
+
+    # This sits in the main data/ directory
+    BLOCK_PERMS="${DATA_ROOT}/trec_block_permutations.json"
 
 else
     echo "Unknown dataset: $dataset"
@@ -207,8 +224,8 @@ cat  "$LOG_FILE"
 # Parse the logs and move outputs
 # python parse_log.py "$LOG_FILE" "$k_val"
 python make_json.py --log_file "$LOG_FILE" --out "$OUT_DIR/metadata.json" --k "$k_val"
-mv "approx_precompute_reranked_$k_val.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}_rerank.tsv" || true
-mv "approx_precompute_$k_val.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}.tsv" || true
+mv "approx_precompute_reranked_${k_val}.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}_rerank.tsv" || true
+mv "approx_precompute_${k_val}.tsv" "${OUT_DIR}/go_results_${dataset}_b${B_val}_r${r_val}_k${k_val}.tsv" || true
 
 # Copy SLURM logs
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true
