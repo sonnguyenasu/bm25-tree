@@ -212,7 +212,7 @@ echo "Running real tree search..."
     --stage2-idmap-bin "$STAGE2_IDMAP" \
     --vocab "$VOCAB" \
     --query-words 8 \
-    --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE"
+    --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE" \
     --output-tsv-path "$OUT_DIR/go_results.tsv"
 
 elapsed_time=$SECONDS
