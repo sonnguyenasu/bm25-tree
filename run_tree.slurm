@@ -164,6 +164,8 @@ python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
 # Define log file name
 LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_k${k_val}.log"
 
+rm "$OUT_DIR/go_results.tsv"
+touch "$OUT_DIR/go_results.tsv"
 
 echo "Running dummy round to see if anything is wrong"
 ./bm25-search \
@@ -212,8 +214,9 @@ echo "Running real tree search..."
     --stage2-idmap-bin "$STAGE2_IDMAP" \
     --vocab "$VOCAB" \
     --query-words 8 \
-    --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE" \
-    --output-tsv-path "$OUT_DIR/go_results.tsv"
+    --output-tsv-path "$OUT_DIR/go_results.tsv" \
+    --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE"
+
 
 elapsed_time=$SECONDS
 echo "Time elapsed: $elapsed_time seconds"
