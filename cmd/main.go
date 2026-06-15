@@ -464,7 +464,7 @@ func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1P
 			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f nDCG@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, ndcgFromStage3, len(docIDs))
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
-				writeResultsReranked(query.ID, docIDs, scores, k)
+				writeResultsReranked(query.ID, docIDs, scores, k, resultsPath)
 			}
 		} else {
 			// Write original hitSubs results
@@ -524,9 +524,9 @@ func loadQrels(path string) map[string]map[string]bool {
 }
 
 // writeResultsReranked writes reranked results to a file `approx_precompute_reranked_<k>.tsv`
-func writeResultsReranked(qid string, docIDs []string, scores []float32, k int) {
-	fname := fmt.Sprintf("approx_precompute_reranked_%d.tsv", k)
-	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func writeResultsReranked(qid string, docIDs []string, scores []float32, k int, fname *string) {
+
+	f, err := os.OpenFile(*fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening reranked results file: %v\n", err)
 		return
