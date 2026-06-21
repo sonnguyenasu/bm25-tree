@@ -167,7 +167,7 @@ func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 
 /// TODO: optimize for multiple batch
 
-// Replace the Query function in batch-pir.go
+// Replace the Query function in batch-Pir.go
 
 // func (p *SimpleBatchPianoPIR) Query(idx []uint32) ([][]byte, error) {
 //     // 1. USE BATCH SIZE, NOT PARTITION NUM
@@ -274,7 +274,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 				query, _ := p.subPIR[i].Query(partitionQueries[i][j]-i*p.config.PartitionSize, true)
 				//if err != nil {
 
-				//log.Printf("the queries to this sub pir is: %v, the offset is %v\n", partitionQueries[i], partitionQueries[i][j]-i*p.config.PartitionSize)
+				//log.Printf("the queries to this sub Pir is: %v, the offset is %v\n", partitionQueries[i], partitionQueries[i][j]-i*p.config.PartitionSize)
 				//log.Printf("All the queries are %v\n", partitionQueries)
 				//log.Printf("SimpleBatchPianoPIR.Query: subPIR[%v].Query(%v) failed: %v\n", i, partitionQueries[i][j], err)
 				//	return nil, err

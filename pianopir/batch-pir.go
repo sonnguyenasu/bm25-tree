@@ -80,7 +80,7 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 	for gcd(offsetKey, PartitionSize) != 1 {
 		offsetKey++
 	}
-	
+
 	// Allocate padded buffer (PartitionNum * PartitionSize)
 	paddedTotalSize := PartitionNum * PartitionSize * DBEntrySize
 	partitionedDB := make([]uint64, paddedTotalSize)
@@ -101,7 +101,7 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 			for r := startRow; r < endRow; r++ {
 				// 1. Select Partition: Round-Robin (Load Balance)
 				p := r % PartitionNum
-				
+
 				// 2. Select Offset: Scrambled (Chunk Balance)
 				// We permute the logical offset (r/P) using the coprime key
 				logicalOffset := r / PartitionNum
@@ -134,6 +134,26 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 		FinishedBatchNum:       0,
 		QueriesMadeInPartition: 0,
 	}
+}
+
+func (p *SimpleBatchPianoPIR) PrintDataInfo() {
+
+	totalWANTime := 0.0
+	totalLANTime := 0.0
+	var totalUint64 uint64 = 0
+
+	for sub := range p.subPIR {
+		subUint, subWAN, subLAN := ReturnMetrics(p.subPIR[sub].server)
+		totalUint64 += subUint
+		totalWANTime += subWAN
+		totalLANTime += subLAN
+	}
+
+	fmt.Printf("\nTotal WAN Time %.4f\n", totalWANTime)
+	fmt.Printf("Total LAN Time %.4f\n", totalLANTime)
+	fmt.Printf("Total Uint64 %d\n", totalUint64)
+	fmt.Printf("%.4f,%.4f,%d", totalWANTime, totalLANTime, totalUint64)
+
 }
 
 func (p *SimpleBatchPianoPIR) PrintInfo() {
@@ -213,23 +233,23 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 
 	queryNumToMake := (len(idx) + int(p.config.PartitionNum) - 1) / int(p.config.PartitionNum)
 	partitionQueries := make([][]uint64, p.config.PartitionNum)
-	
+
 	// Helper struct to match responses back to original requests
 	// Note: We cannot easily invert the hash, so we store the context
 	type reqCtx struct {
-		partitionID uint64
+		partitionID     uint64
 		scrambledOffset uint64
 	}
-	
+
 	// Map LogicalID -> Scrambled Location
 	reqMap := make(map[uint64]reqCtx)
 
 	for _, id := range idx {
 		partID := id % p.config.PartitionNum
-		
+
 		logicalOffset := id / p.config.PartitionNum
 		scrambledOffset := (logicalOffset * p.offsetKey) % p.config.PartitionSize
-		
+
 		partitionQueries[partID] = append(partitionQueries[partID], scrambledOffset)
 		reqMap[id] = reqCtx{partID, scrambledOffset}
 	}
@@ -256,7 +276,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 			if j >= len(actualQueries) {
 				isReal = false
 			}
-			
+
 			offset := partitionQueries[i][j]
 			val, err := p.subPIR[i].Query(offset, isReal)
 
@@ -288,7 +308,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 					failureReasons["Other"]++
 					fmt.Printf("[DIAG] Other error caught in batch: %s\n", err.Error())
 				}
-				
+
 				p.Preprocessing()
 				val, err = p.subPIR[i].Query(offset, isReal)
 				if err != nil {
@@ -303,19 +323,19 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 					}
 				}
 			}
-			
+
 			if isReal {
 				// Key = (Partition << 48) | Offset
 				// Support larger offsets
 				key := (i << 48) | offset
 				responses[key] = val
 				responsesStored++
-				
+
 				// Track if this response is all-zeros
 				if isAllZero {
 					allZeroResponses++
 					// Enhanced diagnostic: log all-zero responses for real queries
-					fmt.Printf("[PARTITION_ZERO] Partition=%d, Offset=%d (real_query_idx=%d/%d), isAllZero=true\n", 
+					fmt.Printf("[PARTITION_ZERO] Partition=%d, Offset=%d (real_query_idx=%d/%d), isAllZero=true\n",
 						i, offset, j, len(actualQueries))
 				}
 			}
@@ -326,7 +346,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 	for i, id := range idx {
 		ctx := reqMap[id]
 		key := (ctx.partitionID << 48) | ctx.scrambledOffset
-		
+
 		if val, ok := responses[key]; ok {
 			ret[i] = val
 		} else {

@@ -18,7 +18,7 @@ type Stage1PIRDB struct {
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
-	pir         *pianopir.SimpleBatchPianoPIR
+	Pir         *pianopir.SimpleBatchPianoPIR
 	mu          sync.RWMutex
 }
 
@@ -33,7 +33,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		R:           r,
 		LookupTable: make(map[int]map[int]int),
 		Vocab:       make(map[string]int),
-		pir:         nil,
+		Pir:         nil,
 	}
 
 	// Load vocab
@@ -109,7 +109,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 		// DBSize is number of rows. Each row is r bytes = r/8 uint64 elements
 		entrySizeUint64 := uint64(r) / 8
 		dbSize := uint64(len(db.DataUint64)) / entrySizeUint64
-		db.pir = pianopir.NewSimpleBatchPianoPIR(
+		db.Pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
 			uint64(r),
 			batchSize,
@@ -117,7 +117,7 @@ func NewStage1PIRDBWithPIR(dataBinPath, idmapBinPath, vocabPath string, r int, e
 			20, // FailureProbLog2
 		)
 		fmt.Printf("Stage1 PIR: initialized with DBSize=%d, EntrySize=%d bytes, BatchSize=%d\n", dbSize, r, batchSize)
-		db.pir.Preprocessing()
+		db.Pir.Preprocessing()
 		fmt.Printf("Stage1 PIR: preprocessing complete\n")
 	}
 
@@ -151,7 +151,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	if db.pir == nil {
+	if db.Pir == nil {
 		// Fallback to direct read if PIR not available
 		return db.getScoreDirect(termIDs, nodeIDs)
 	}
@@ -195,7 +195,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 		fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices (first 3): %v\n", len(rowIndices), rowIndices[:3])
 	}
 	fmt.Printf("[DEBUG] Stage1: Executing PIR batch query with %d row indices\n", len(rowIndices))
-	responses, err := db.pir.Query(rowIndices)
+	responses, err := db.Pir.Query(rowIndices)
 	if err != nil {
 		fmt.Printf("[DEBUG] Stage1 batch query error: %v, falling back to direct read\n", err)
 		return db.getScoreDirect(termIDs, nodeIDs)
@@ -215,14 +215,14 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 		if allZeroResponseUint64(response) {
 			// PIR returned all zeros - check if this is a real failure or valid padding
 			directResponse := db.readRowDirectUint64(req.rowIdx)
-			
+
 			// MISMATCH DIAGNOSTIC: Print only if direct read has different data
 			if !allZeroResponseUint64(directResponse) {
 				// This is a REAL FAILURE - PIR returned zeros but direct has data
 				// Calculate partition and offset for context
-				partitionID := req.rowIdx % uint64(db.pir.Config().PartitionNum)
-				logicalOffset := req.rowIdx / uint64(db.pir.Config().PartitionNum)
-				fmt.Printf("[MISMATCH_PIR_FAILURE] rowIdx=%d (partition=%d, logicalOffset=%d, termID=%d, nodeID=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n", 
+				partitionID := req.rowIdx % uint64(db.Pir.Config().PartitionNum)
+				logicalOffset := req.rowIdx / uint64(db.Pir.Config().PartitionNum)
+				fmt.Printf("[MISMATCH_PIR_FAILURE] rowIdx=%d (partition=%d, logicalOffset=%d, termID=%d, nodeID=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n",
 					req.rowIdx, partitionID, logicalOffset, req.termID, req.nodeID, directResponse[0], i, len(responses))
 				response = directResponse
 			} else {
@@ -234,7 +234,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 
 		// Convert uint64 to byte array
 		row := convertUint64ToBytes(response)
-		
+
 		// Debug: Compare PIR response with direct read for first few requests
 		if Debug && i < 3 {
 			directRow := db.readRowDirectByte(int(req.rowIdx))
@@ -252,7 +252,7 @@ func (db *Stage1PIRDB) GetScoreBatch(termIDs []int, nodeIDs []int) map[int]map[i
 				Debugf("Stage1 PIR OK: termID=%d, nodeID=%d, rowIdx=%d, first 10 bytes match", req.termID, req.nodeID, req.rowIdx)
 			}
 		}
-		
+
 		result[req.termID][req.nodeID] = row
 	}
 

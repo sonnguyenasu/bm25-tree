@@ -26,8 +26,16 @@ type PianoPIRConfig struct {
 }
 
 type PianoPIRServer struct {
-	config *PianoPIRConfig
-	rawDB  []uint64
+	config         *PianoPIRConfig
+	rawDB          []uint64
+	RetrievalCount uint64
+	NetworkTimeWAN float64
+	NetworkTimeLAN float64
+}
+
+func ReturnMetrics(s *PianoPIRServer) (uint64, float64, float64) {
+
+	return s.RetrievalCount, s.NetworkTimeWAN, s.NetworkTimeLAN
 }
 
 // an initialization function for the server
@@ -85,6 +93,27 @@ func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
 		//for i := uint64(0); i < s.config.DBEntrySize; i++ {
 		//	ret[i] ^= s.rawDB[idx*s.config.DBEntrySize+i]
 		//	}
+
+		entry := s.rawDB[idx*s.config.DBEntrySize : (idx+1)*s.config.DBEntrySize]
+
+		var singleResponseSize = uint64(len(entry))
+
+		s.RetrievalCount += singleResponseSize
+
+		totalBytes := float64(singleResponseSize)
+		totalBits := totalBytes * 8.0
+
+		// WAN Calculation: 400 Mbps bandwidth + 50ms latency
+		bandwidthMbpsWAN := 400.0
+		bandwidthBpsWAN := bandwidthMbpsWAN * 1000000.0
+		transmissionTimeSecondsWAN := totalBits / bandwidthBpsWAN
+		s.NetworkTimeWAN += transmissionTimeSecondsWAN + 0.05
+
+		// LAN Calculation: 10 Gbps (10,000 Mbps) bandwidth + 5ms latency
+		bandwidthMbpsLAN := 10000.0
+		bandwidthBpsLAN := bandwidthMbpsLAN * 1000000.0
+		transmissionTimeSecondsLAN := totalBits / bandwidthBpsLAN
+		s.NetworkTimeLAN += transmissionTimeSecondsLAN + 0.005
 	}
 
 	return ret, nil

@@ -199,19 +199,19 @@ func Round2BMWPrecomputedWithWorkTerms(
 }
 
 func issueDummyPIRQueriesStage1(db *Stage1PIRDB, count int) {
-	if count <= 0 || db == nil || db.pir == nil {
+	if count <= 0 || db == nil || db.Pir == nil {
 		return
 	}
 	idx := make([]uint64, count)
-	_, _ = db.pir.Query(idx)
+	_, _ = db.Pir.Query(idx)
 }
 
 func issueDummyPIRQueriesStage2(pre *Stage2Precomputed, count int) {
-	if count <= 0 || pre == nil || pre.pir == nil {
+	if count <= 0 || pre == nil || pre.Pir == nil {
 		return
 	}
 	idx := make([]uint64, count)
-	_, _ = pre.pir.Query(idx)
+	_, _ = pre.Pir.Query(idx)
 }
 
 type stage1WorkTerm struct {
@@ -335,8 +335,8 @@ func queryStage1Rows(db *Stage1PIRDB, rowIndices []uint64) [][]byte {
 
 	out := make([][]byte, len(rowIndices))
 
-	if db != nil && db.pir != nil {
-		responses, err := db.pir.Query(rowIndices)
+	if db != nil && db.Pir != nil {
+		responses, err := db.Pir.Query(rowIndices)
 		if err == nil {
 			fmt.Printf("[DEBUG] Stage1: PIR query succeeded, got %d responses\n", len(responses))
 			for i, words := range responses {
@@ -451,8 +451,8 @@ func sumBoundsForTermsWithPIRExact(pre *Stage2Precomputed, queryTerms []string, 
 	fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices\n", len(rowIndices))
 
 	var responses [][]uint64
-	if pre.pir != nil {
-		res, err := pre.pir.Query(rowIndices)
+	if pre.Pir != nil {
+		res, err := pre.Pir.Query(rowIndices)
 		if err == nil {
 			responses = res
 			fmt.Printf("[DEBUG] Stage2: PIR query succeeded, got %d responses\n", len(responses))

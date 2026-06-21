@@ -31,7 +31,7 @@ type Stage3Reranker struct {
 	DocIDReverseMap map[string]int
 
 	// PIR support: optional PIR-backed embedding access
-	pir       *pianopir.SimpleBatchPianoPIR
+	Pir       *pianopir.SimpleBatchPianoPIR
 	pirUsable bool // true if PIR is initialized and can be used
 
 	// Blocking & Permutation Support
@@ -58,7 +58,7 @@ func NewStage3Reranker(
 		EmbedDim:     embedDim,
 		BytesPerElem: 0, // will be set from NPY header
 		QueryIDMap:   make(map[string]int),
-		pir:          nil,
+		Pir:          nil,
 		pirUsable:    false,
 	}
 
@@ -217,7 +217,7 @@ func NewStage3Reranker(
 			embedUint64 = append(embedUint64, padding...)
 		}
 
-		sr.pir = pianopir.NewSimpleBatchPianoPIR(
+		sr.Pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
 			entrySizeBytes,
 			batchSize,
@@ -225,7 +225,7 @@ func NewStage3Reranker(
 			20, // FailureProbLog2
 		)
 		fmt.Printf("Stage3 PIR (Blocking Mode): initialized with DBSize=%d blocks, EntrySize=%d bytes (8 docs/block), BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
-		sr.pir.Preprocessing()
+		sr.Pir.Preprocessing()
 		fmt.Printf("Stage3 PIR: preprocessing complete\n")
 		sr.pirUsable = true
 	}
@@ -305,9 +305,9 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 	result := make(map[int][]float32)
 
 	// If PIR is not available or disabled, use direct reads
-	if !sr.pirUsable || sr.pir == nil {
+	if !sr.pirUsable || sr.Pir == nil {
 		if len(docIndices) > 0 && docIndices[0] == 7542593 {
-			Debugf("DEBUG: GetDocEmbeddingBatch using DIRECT READ path (pirUsable=%v, pir==nil=%v)\n", sr.pirUsable, sr.pir == nil)
+			Debugf("DEBUG: GetDocEmbeddingBatch using DIRECT READ path (pirUsable=%v, Pir==nil=%v)\n", sr.pirUsable, sr.Pir == nil)
 		}
 		for _, idx := range docIndices {
 			result[idx] = sr.getDocEmbeddingDirect(idx)
@@ -342,7 +342,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 
 	// 3. Execute Batch Query
 	fmt.Printf("[DEBUG] Stage3: Executing PIR batch query with %d blocks\n", len(queryBlocks))
-	responses, err := sr.pir.Query(queryBlocks)
+	responses, err := sr.Pir.Query(queryBlocks)
 	if err != nil {
 		fmt.Printf("[DEBUG] Stage3 PIR batch query error: %v, falling back to direct read\n", err)
 		for _, idx := range docIndices {

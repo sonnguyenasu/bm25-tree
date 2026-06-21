@@ -21,7 +21,7 @@ type Stage2Precomputed struct {
 	dataFile    *os.File
 	LookupTable map[int]map[int]int // term_id -> node_id -> row_index
 	Vocab       map[string]int      // term_str -> term_id
-	pir         *pianopir.SimpleBatchPianoPIR
+	Pir         *pianopir.SimpleBatchPianoPIR
 	mu          sync.RWMutex
 }
 
@@ -42,7 +42,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		Scale:       scale,
 		LookupTable: make(map[int]map[int]int),
 		Vocab:       make(map[string]int),
-		pir:         nil,
+		Pir:         nil,
 	}
 
 	// Load vocab
@@ -121,7 +121,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 		// we pass DBEntryByteNum = 8 (1 word) to get DBEntrySize = 1 word per row.
 		dbEntryByteNum := uint64(8) // 1 uint64 word
 		//fmt.Printf("Stage2 PIR debug: pre.R=%d, len(DataMmap)=%d (rows), len(DataUint64)=%d (words), DBSize=%d\n", pre.R, len(pre.DataMmap)/pre.R, len(pre.DataUint64), dbSize)
-		pre.pir = pianopir.NewSimpleBatchPianoPIR(
+		pre.Pir = pianopir.NewSimpleBatchPianoPIR(
 			dbSize,
 			dbEntryByteNum, // 8 bytes = 1 uint64 word
 			batchSize,
@@ -129,7 +129,7 @@ func NewStage2PrecomputedWithPIR(dataBinPath, idmapBinPath, vocabPath string, B,
 			20, // FailureProbLog2
 		)
 		fmt.Printf("Stage2 PIR: initialized with DBSize=%d, EntryByteNum=8 (1 uint64 word), BatchSize=%d\n", dbSize, batchSize)
-		pre.pir.Preprocessing()
+		pre.Pir.Preprocessing()
 		fmt.Printf("Stage2 PIR: preprocessing complete\n")
 	}
 
@@ -235,7 +235,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 	}
 
 	// If PIR not available, use direct method
-	if pre.pir == nil {
+	if pre.Pir == nil {
 		return pre.SumBoundsForTerms(terms, leafNodes)
 	}
 
@@ -313,7 +313,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 		fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices (first 3): %v\n", len(rowIndices), rowIndices[:3])
 	}
 	fmt.Printf("[DEBUG] Stage2: Executing PIR batch query with %d row indices\n", len(rowIndices))
-	responses, err := pre.pir.Query(rowIndices)
+	responses, err := pre.Pir.Query(rowIndices)
 	if err != nil {
 		fmt.Printf("[DEBUG] Stage2 batch query error: %v, falling back to direct read\n", err)
 		// Fallback: use direct method
@@ -329,14 +329,14 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 		if allZeroResponseUint64(rowWords) {
 			// PIR returned all zeros - check if this is a real failure or valid padding
 			directRowWords := pre.readRowDirectUint64(req.rowIdx)
-			
+
 			// MISMATCH DIAGNOSTIC: Print only if direct read has different data
 			if !allZeroResponseUint64(directRowWords) {
 				// This is a REAL FAILURE - PIR returned zeros but direct has data
 				// Calculate partition and offset for context
-				partitionID := req.rowIdx % uint64(pre.pir.Config().PartitionNum)
-				logicalOffset := req.rowIdx / uint64(pre.pir.Config().PartitionNum)
-				fmt.Printf("[MISMATCH_PIR_FAILURE_S2] rowIdx=%d (partition=%d, logicalOffset=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n", 
+				partitionID := req.rowIdx % uint64(pre.Pir.Config().PartitionNum)
+				logicalOffset := req.rowIdx / uint64(pre.Pir.Config().PartitionNum)
+				fmt.Printf("[MISMATCH_PIR_FAILURE_S2] rowIdx=%d (partition=%d, logicalOffset=%d) returned all-zeros from PIR but non-zero from direct. PIR_first_word=0, Direct_first_word=%d, response_idx=%d/%d\n",
 					req.rowIdx, partitionID, logicalOffset, directRowWords[0], i, len(responses))
 				rowWords = directRowWords
 			} else {
@@ -349,7 +349,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 
 		// Convert uint64 word(s) back to bytes
 		rowBytes := convertUint64ToBytes(rowWords)
-		
+
 		// Debug: Compare PIR response with direct read for first few requests
 		if Debug && i < 3 {
 			start := int(req.rowIdx) * pre.R
@@ -361,7 +361,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 			} else {
 				directBytes = make([]byte, pre.R)
 			}
-			
+
 			pirMatch := true
 			for j := 0; j < pre.R; j++ {
 				if rowBytes[j] != directBytes[j] {
@@ -376,7 +376,7 @@ func (pre *Stage2Precomputed) SumBoundsForTermsWithPIR(terms []string, leafNodes
 				Debugf("Stage2 PIR OK: termID=%d, nodeID=%d, rowIdx=%d, bytes match", req.termID, req.nodeID, req.rowIdx)
 			}
 		}
-		
+
 		// Use first pre.R bytes (each is one uint8 sub-block score)
 		for j := 0; j < pre.R && j < len(rowBytes); j++ {
 			acc[req.nodeID][j] += int(rowBytes[j])
@@ -401,8 +401,8 @@ func (pre *Stage2Precomputed) readRowDirectUint64(rowIdx uint64) []uint64 {
 
 // QueryPIR performs a PIR query for the given row indices (for diagnostic purposes)
 func (pre *Stage2Precomputed) QueryPIR(rowIndices []uint64) ([][]uint64, error) {
-	if pre.pir == nil {
+	if pre.Pir == nil {
 		return nil, fmt.Errorf("PIR not initialized")
 	}
-	return pre.pir.Query(rowIndices)
+	return pre.Pir.Query(rowIndices)
 }

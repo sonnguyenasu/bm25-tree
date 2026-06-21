@@ -90,8 +90,8 @@ func main() {
 	var stage2DB *bm25.Stage2Precomputed = nil
 	if !*skipStage2 && *loadStage2Hits == "" {
 		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
-			*stage2DataBin,//"data/stage2/data.bin",
-			*stage2IdmapBin,//"data/stage2/idmap.bin",
+			*stage2DataBin,  //"data/stage2/data.bin",
+			*stage2IdmapBin, //"data/stage2/idmap.bin",
 			*vocab,
 			*B,
 			*s,
@@ -118,7 +118,7 @@ func main() {
 	var layout *bm25.LayoutWithStats
 	if *precompute {
 		// Load from file
-		layout, err = loadLayout(*layoutPath)//"./data/layout_with_stats.json")
+		layout, err = loadLayout(*layoutPath) //"./data/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
@@ -168,8 +168,8 @@ func main() {
 	analyzedQueriesPath := strings.Replace(*queries, ".tsv", ".analyzed.json", 1)
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
-		if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-			sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPermPath, *embedDim, enablePIR, uint64(32))
+	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
+		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPermPath, *embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {
@@ -179,6 +179,18 @@ func main() {
 	}
 
 	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork)
+
+	fmt.Printf("\nStage1 PIR Data and LAN and WAN time:")
+	stage1DB.Pir.PrintInfo()
+	fmt.Printf("\nStage2 PIR Data and LAN and WAN time:")
+	stage2DB.Pir.PrintInfo()
+	fmt.Printf("\nStage3 PIR Data and LAN and WAN time:")
+	if stage3 != nil {
+		stage3.Pir.PrintInfo()
+	} else {
+		print("Stage3 was nil\n")
+	}
+
 }
 
 type AnalyzedQuery struct {
@@ -196,9 +208,9 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	if targetLength <= 0 {
 		return terms, originalLen
 	}
-	
+
 	normalized := make([]string, targetLength)
-	
+
 	if len(terms) >= targetLength {
 		// Truncate if too many terms
 		copy(normalized, terms[:targetLength])
@@ -318,7 +330,7 @@ func processAnalyzedQueries(
 		if constantPIRWork {
 			workTerms = query.Terms
 		}
-		
+
 		if bm25.Debug || true {
 			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
 			if len(query.Terms) > query.OriginalLength {
@@ -470,7 +482,7 @@ func processAnalyzedQueries(
 				}
 			}
 			// Get reranked IDs/scores from Stage3
-			
+
 			start = time.Now()
 			docIDs, scores, mrrFromStage3, ndcgFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
 			elapsed = time.Since(start)
