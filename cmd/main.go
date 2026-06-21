@@ -51,6 +51,8 @@ func main() {
 	saveStage2Hits := flag.String("save-stage2-hits", "", "If set, save computed Stage2 hitSubs to this JSON file")
 	skipStage2 := flag.Bool("skip-stage2", false, "If set, do not initialize Stage2 DB (use --load-stage2-hits to provide hits)")
 
+	resultsPath := flag.String("output-tsv-path", "", "Where to save the tsv to")
+
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
 	bm25.Debug = *debug
@@ -191,6 +193,7 @@ func main() {
 		print("Stage3 was nil\n")
 	}
 
+	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork, resultsPath)
 }
 
 type AnalyzedQuery struct {
@@ -228,25 +231,7 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	}
 }
 
-func processAnalyzedQueries(
-	layout *bm25.LayoutWithStats,
-	stage1DB *bm25.Stage1PIRDB,
-	stage2DB *bm25.Stage2Precomputed,
-	luceneIdx *bm25.LuceneIndex,
-	queriesPath string,
-	maxQueries int,
-	L int,
-	s int,
-	kCandidates int,
-	k int,
-	stage3 *bm25.Stage3Reranker,
-	qrelsPath string,
-	loadStage2HitsPath string,
-	saveStage2HitsPath string,
-	skipStage2 bool,
-	queryWords int,
-	constantPIRWork bool,
-) {
+func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1PIRDB, stage2DB *bm25.Stage2Precomputed, luceneIdx *bm25.LuceneIndex, queriesPath string, maxQueries int, L int, s int, kCandidates int, k int, stage3 *bm25.Stage3Reranker, qrelsPath string, loadStage2HitsPath string, saveStage2HitsPath string, skipStage2 bool, queryWords int, constantPIRWork bool, resultsPath *string) {
 	// Read analyzed queries JSON file
 	data, err := os.ReadFile(queriesPath)
 	if err != nil {
@@ -492,11 +477,11 @@ func processAnalyzedQueries(
 			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f nDCG@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, ndcgFromStage3, len(docIDs))
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
-				writeResultsReranked(query.ID, docIDs, scores, k)
+				writeResultsReranked(query.ID, docIDs, scores, k, resultsPath)
 			}
 		} else {
 			// Write original hitSubs results
-			writeResults(query.ID, hitSubs, k, luceneIdx)
+			writeResults(query.ID, hitSubs, k, luceneIdx, resultsPath)
 		}
 		queryCount++
 	}
@@ -552,9 +537,9 @@ func loadQrels(path string) map[string]map[string]bool {
 }
 
 // writeResultsReranked writes reranked results to a file `approx_precompute_reranked_<k>.tsv`
-func writeResultsReranked(qid string, docIDs []string, scores []float32, k int) {
-	fname := fmt.Sprintf("approx_precompute_reranked_%d.tsv", k)
-	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func writeResultsReranked(qid string, docIDs []string, scores []float32, k int, fname *string) {
+
+	f, err := os.OpenFile(*fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening reranked results file: %v\n", err)
 		return
@@ -609,9 +594,9 @@ func getNumDocs(indexPath string) int {
 
 // Removed unused function processQueries
 
-func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex) int {
+func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex, resultsPath *string) int {
 	// Open results file in append mode
-	f, err := os.OpenFile(fmt.Sprintf("approx_precompute_%d.tsv", k), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(*resultsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening results file: %v\n", err)
 		return 0
