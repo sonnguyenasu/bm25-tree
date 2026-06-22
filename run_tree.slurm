@@ -241,7 +241,7 @@ echo "Running real tree search..."
     --vocab "$VOCAB" \
     --query-words 8 \
     --output-tsv-path "$OUT_DIR/go_results.tsv" \
-    --pir-batch-size 128 2>&1 | grep "ns\|us\|µs\|micro\|ms\|MRR\|MB\|KB" > "$LOG_FILE"
+    --pir-batch-size 128 > "$LOG_FILE"
 
 
 elapsed_time=$SECONDS
