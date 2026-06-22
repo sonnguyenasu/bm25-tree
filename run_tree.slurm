@@ -190,7 +190,7 @@ python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
 # Define log file name
 LOG_FILE="${OUT_DIR}/run_go_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}.log"
 
-rm "$OUT_DIR/go_results.tsv"
+rm -f "$OUT_DIR/go_results.tsv"
 touch "$OUT_DIR/go_results.tsv"
 
 echo "Running dummy round to see if anything is wrong"
