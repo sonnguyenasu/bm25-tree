@@ -8,7 +8,7 @@
 #SBATCH --time=0-05:30:00
 
 #SBATCH --array=0-59
-# SBATCH --output=logs/Tree_%A_%a.out
+#SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
 
 set -euo pipefail
