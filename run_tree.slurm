@@ -7,8 +7,8 @@
 #SBATCH --mem=150G
 #SBATCH --time=0-05:30:00
 
-#SBATCH --array=0-15
-#SBATCH --output=logs/Tree_%A_%a.out
+#SBATCH --array=0-59
+# SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
 
 set -euo pipefail
@@ -19,32 +19,48 @@ module load hosts/hopper
 module load gnu9/9.3.0
 export PATH=$PATH:/usr/local/go/bin
 
-# 1. VARY B & R
-# Index:      0       1       2       3       4       5       6       7       8
-# Test:       VARY B & R (msmarco, k=100)
-DATA_ARR=(    msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco msmarco )
-B_ARR=(       16      16      16      32      32      32      64      64      64      )
-R_ARR=(       8       32      128     8       32      128     8       32      128     )
-K_ARR=(       100     100     100     100     100     100     100     100     100     )
+DATA_ARR=()
+METHOD_ARR=()
+B_ARR=()
+R_ARR=()
+K_ARR=()
 
-# 2. VARY K (B=32, r=128, msmarco)
-# Index:      9       10      11      12      13      14
-# Test:       VARY K
-DATA_ARR+=(   msmarco msmarco msmarco msmarco msmarco msmarco )
-B_ARR+=(      32      32      32      32      32      32      )
-R_ARR+=(      128     128     128     128     128     128     )
-K_ARR+=(      10      50      100     500     1000    5000    )
+# Helper function to generate the 15 ablations per dataset/method
+add_ablations() {
+    local d=$1
+    local m=$2
 
-# 3. VARY DATA (B=32, r=128, k=100)
-# Index:      15         16
-# Test:       VARY DATA
-DATA_ARR+=(   scifact    trec-covid )
-B_ARR+=(      32         32         )
-R_ARR+=(      128        128        )
-K_ARR+=(      100        100        )
+    # 1. VARY B & R (k=100) -> 9 combinations
+    for b in 16 32 64; do
+        for r in 8 32 128; do
+            DATA_ARR+=("$d")
+            METHOD_ARR+=("$m")
+            B_ARR+=("$b")
+            R_ARR+=("$r")
+            K_ARR+=("100")
+        done
+    done
+
+    # 2. VARY K (B=32, r=128) -> 6 combinations
+    for k in 10 50 100 500 1000 5000; do
+        DATA_ARR+=("$d")
+        METHOD_ARR+=("$m")
+        B_ARR+=("32")
+        R_ARR+=("128")
+        K_ARR+=("$k")
+    done
+}
+
+# Build the setups
+add_ablations "msmarco" "cluster"
+add_ablations "msmarco" "lucene"
+add_ablations "scifact" "default"
+add_ablations "trec-covid" "default"
+
 task_id=$SLURM_ARRAY_TASK_ID
 
 dataset=${DATA_ARR[$task_id]}
+method=${METHOD_ARR[$task_id]}
 B_val=${B_ARR[$task_id]}
 r_val=${R_ARR[$task_id]}
 k_val=${K_ARR[$task_id]}
@@ -70,8 +86,17 @@ if [ "$dataset" == "msmarco" ]; then
     INDEX="${DATA_ROOT}/msmarco_reordered"
 
     # All cluster configurations (including b64) are now uniformly in exp_cluster
-    SUB_DIR="exp_setup/exp_cluster" # Toggle to "exp_lucene" if needed
-    PREFIX="cluster_golang" # Toggle to "lucene_golang" if needed
+    # Route to the correct directory based on the ablation method
+    if [ "$method" == "cluster" ]; then
+        SUB_DIR="exp_setup/exp_cluster"
+        PREFIX="cluster_golang"
+    elif [ "$method" == "lucene" ]; then
+        SUB_DIR="exp_setup/exp_lucene"
+        PREFIX="lucene_golang"
+    else
+        echo "Unknown method for msmarco: $method"
+        exit 1
+    fi
 
     STAGE1_DATA="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_data.bin"
     STAGE1_IDMAP="${DATA_ROOT}/${SUB_DIR}/${PREFIX}_b${B_val}_r${r_val}_idmap.bin"
@@ -145,12 +170,13 @@ fi
 
 LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
 
-OUT_DIR="../results/tree_${dataset}_b${B_val}_r${r_val}_k${k_val}"
+OUT_DIR="../results/tree_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}"
 mkdir -p "$OUT_DIR"
 
 echo "========================================"
 echo "Array Task ID: $SLURM_ARRAY_TASK_ID"
 echo "Dataset:       $dataset"
+echo "Method:        $method"
 echo "B Value:       $B_val"
 echo "r Value:       $r_val"
 echo "K Value:       $k_val"
@@ -162,7 +188,7 @@ echo "========================================"
 python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
 
 # Define log file name
-LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_k${k_val}.log"
+LOG_FILE="${OUT_DIR}/run_go_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}.log"
 
 rm "$OUT_DIR/go_results.tsv"
 touch "$OUT_DIR/go_results.tsv"
