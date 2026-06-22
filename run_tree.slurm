@@ -193,29 +193,29 @@ LOG_FILE="${OUT_DIR}/run_go_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}.l
 rm -f "$OUT_DIR/go_results.tsv"
 touch "$OUT_DIR/go_results.tsv"
 
-echo "Running dummy round to see if anything is wrong"
-./bm25-search \
-    --B "$B_val" \
-    --r "$r_val" \
-    --k_candidates "$k_val" \
-    --layout-path "$LAYOUT_PATH" \
-    --qrels "$QRELS" \
-    --index "$INDEX" \
-    --queries "$QUERIES" \
-    --max-queries "$MAX_QUERIES" \
-    --precompute \
-    --doc-embed "$DOC_EMBED" \
-    --doc-id-map "$DOC_ID_MAP" \
-    --query-embed "$QUERY_EMBED" \
-    --embed-dim "$EMBED_DIM" \
-    --stage1-data-bin "$STAGE1_DATA" \
-    --stage1-idmap-bin "$STAGE1_IDMAP" \
-    --stage2-data-bin "$STAGE2_DATA" \
-    --stage2-idmap-bin "$STAGE2_IDMAP" \
-    --vocab "$VOCAB" \
-    --query-words 8 \
-    --block-permutation "$BLOCK_PERMS" \
-    --pir-batch-size 128
+#echo "Running dummy round to see if anything is wrong"
+#./bm25-search \
+#    --B "$B_val" \
+#    --r "$r_val" \
+#    --k_candidates "$k_val" \
+#    --layout-path "$LAYOUT_PATH" \
+#    --qrels "$QRELS" \
+#    --index "$INDEX" \
+#    --queries "$QUERIES" \
+#    --max-queries "$MAX_QUERIES" \
+#    --precompute \
+#    --doc-embed "$DOC_EMBED" \
+#    --doc-id-map "$DOC_ID_MAP" \
+#    --query-embed "$QUERY_EMBED" \
+#    --embed-dim "$EMBED_DIM" \
+#    --stage1-data-bin "$STAGE1_DATA" \
+#    --stage1-idmap-bin "$STAGE1_IDMAP" \
+#    --stage2-data-bin "$STAGE2_DATA" \
+#    --stage2-idmap-bin "$STAGE2_IDMAP" \
+#    --vocab "$VOCAB" \
+#    --query-words 8 \
+#    --block-permutation "$BLOCK_PERMS" \
+#    --pir-batch-size 128
 
 
 SECONDS=0
