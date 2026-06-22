@@ -183,12 +183,12 @@ func main() {
 	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork, resultsPath)
 
 	fmt.Printf("\nStage1 PIR Data and LAN and WAN time:")
-	stage1DB.Pir.PrintInfo()
+	stage1DB.Pir.PrintDataInfo()
 	fmt.Printf("\nStage2 PIR Data and LAN and WAN time:")
-	stage2DB.Pir.PrintInfo()
+	stage2DB.Pir.PrintDataInfo()
 	fmt.Printf("\nStage3 PIR Data and LAN and WAN time:")
 	if stage3 != nil {
-		stage3.Pir.PrintInfo()
+		stage3.Pir.PrintDataInfo()
 	} else {
 		print("Stage3 was nil\n")
 	}
