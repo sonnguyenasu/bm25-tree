@@ -94,27 +94,26 @@ func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
 		//	ret[i] ^= s.rawDB[idx*s.config.DBEntrySize+i]
 		//	}
 
-		entry := s.rawDB[idx*s.config.DBEntrySize : (idx+1)*s.config.DBEntrySize]
-
-		var singleResponseSize = uint64(len(entry))
-
-		s.RetrievalCount += singleResponseSize
-
-		totalBytes := float64(singleResponseSize)
-		totalBits := totalBytes * 8.0
-
-		// WAN Calculation: 400 Mbps bandwidth + 50ms latency
-		bandwidthMbpsWAN := 400.0
-		bandwidthBpsWAN := bandwidthMbpsWAN * 1000000.0
-		transmissionTimeSecondsWAN := totalBits / bandwidthBpsWAN
-		s.NetworkTimeWAN += transmissionTimeSecondsWAN + 0.05
-
-		// LAN Calculation: 10 Gbps (10,000 Mbps) bandwidth + 5ms latency
-		bandwidthMbpsLAN := 10000.0
-		bandwidthBpsLAN := bandwidthMbpsLAN * 1000000.0
-		transmissionTimeSecondsLAN := totalBits / bandwidthBpsLAN
-		s.NetworkTimeLAN += transmissionTimeSecondsLAN + 0.005
 	}
+
+	// The server only sends back the final XORed response array
+	var finalResponseElements = uint64(len(ret))
+	s.RetrievalCount += finalResponseElements
+
+	// ret is []uint64, meaning each element is 64 bits (8 bytes)
+	totalBits := float64(finalResponseElements) * 64.0
+
+	// WAN Calculation: 400 Mbps bandwidth + 50ms latency (Applied ONCE per query)
+	bandwidthMbpsWAN := 400.0
+	bandwidthBpsWAN := bandwidthMbpsWAN * 1000000.0
+	transmissionTimeSecondsWAN := totalBits / bandwidthBpsWAN
+	s.NetworkTimeWAN += transmissionTimeSecondsWAN + 0.05
+
+	// LAN Calculation: 10 Gbps (10,000 Mbps) bandwidth + 5ms latency (Applied ONCE per query)
+	bandwidthMbpsLAN := 10000.0
+	bandwidthBpsLAN := bandwidthMbpsLAN * 1000000.0
+	transmissionTimeSecondsLAN := totalBits / bandwidthBpsLAN
+	s.NetworkTimeLAN += transmissionTimeSecondsLAN + 0.005
 
 	return ret, nil
 }

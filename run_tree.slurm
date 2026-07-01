@@ -215,6 +215,7 @@ touch "$OUT_DIR/go_results.tsv"
 #    --vocab "$VOCAB" \
 #    --query-words 8 \
 #    --block-permutation "$BLOCK_PERMS" \
+#    --output-tsv-path "$OUT_DIR/go_results.tsv" \
 #    --pir-batch-size 128
 
 
