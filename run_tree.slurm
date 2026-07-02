@@ -241,6 +241,7 @@ echo "Running real tree search..."
     --stage2-idmap-bin "$STAGE2_IDMAP" \
     --vocab "$VOCAB" \
     --query-words 8 \
+    --block-permutation "$BLOCK_PERMS" \
     --output-tsv-path "$OUT_DIR/go_results.tsv" \
     --pir-batch-size 128 > "$LOG_FILE"
 
