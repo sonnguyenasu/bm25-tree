@@ -256,7 +256,7 @@ cat  "$LOG_FILE"
 
 # Parse the logs and move outputs
 # python parse_log.py "$LOG_FILE" "$k_val"
-python make_json.py --log_file "$LOG_FILE" --out "$OUT_DIR/metadata.json" --k "$k_val"
+# python make_json.py --log_file "$LOG_FILE" --out "$OUT_DIR/metadata.json" --k "$k_val"
 
 # Copy SLURM logs
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true
