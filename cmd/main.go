@@ -52,8 +52,8 @@ func main() {
 	saveStage2Hits := flag.String("save-stage2-hits", "", "If set, save computed Stage2 hitSubs to this JSON file")
 	skipStage2 := flag.Bool("skip-stage2", false, "If set, do not initialize Stage2 DB (use --load-stage2-hits to provide hits)")
 
-	resultsPath := flag.String("output-tsv-path", "", "Where to save the tsv to")
-	outJsonPath := flag.String("output-tsv-path", "metadata.json", "Where to save the metadata json to")
+	resultsPath := flag.String("output-tsv-path", "out.tsv", "Where to save the tsv to")
+	outJsonPath := flag.String("meta-json-path", "metadata.json", "Where to save the metadata json to")
 
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)

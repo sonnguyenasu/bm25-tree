@@ -243,6 +243,7 @@ echo "Running real tree search..."
     --query-words 8 \
     --block-permutation "$BLOCK_PERMS" \
     --output-tsv-path "$OUT_DIR/go_results.tsv" \
+    --meta-json-path "$OUT_DIR/metadata.json" \
     --pir-batch-size 128 > "$LOG_FILE"
 
 
