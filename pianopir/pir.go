@@ -97,7 +97,7 @@ func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
 	}
 
 	// The server only sends back the final XORed response array
-	var finalResponseElements = uint64(len(ret))
+	var finalResponseElements = uint64(len(ret)*8) + uint64(len(offsets)*4)
 	s.RetrievalCount += finalResponseElements
 
 	// ret is []uint64, meaning each element is 64 bits (8 bytes)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"bm25-msmarco/internal/bm25"
@@ -52,6 +53,7 @@ func main() {
 	skipStage2 := flag.Bool("skip-stage2", false, "If set, do not initialize Stage2 DB (use --load-stage2-hits to provide hits)")
 
 	resultsPath := flag.String("output-tsv-path", "", "Where to save the tsv to")
+	outJsonPath := flag.String("output-tsv-path", "metadata.json", "Where to save the metadata json to")
 
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
@@ -180,7 +182,59 @@ func main() {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork, resultsPath)
+	// In main(), update your processAnalyzedQueries call and add the metadata logic:
+
+	// 1. Start the timer
+	startQueries := time.Now()
+
+	// 2. Capture the returned results
+	finalResults := processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *constantPIRWork, resultsPath)
+
+	// 3. Stop the timer
+	totalAnswerTime := time.Since(startQueries)
+
+	// 4. Load qrels to calculate overall MRR and Recall
+	qrelsMap := loadQrels(*qrels)
+	overallMRR := calcOverallMRR(finalResults, qrelsMap)
+	overallRecall := calcOverallRecall(finalResults, qrelsMap)
+
+	// 5. Gather PIR Metrics
+	var totalWAN, totalLAN float64
+	var totalUint64 uint64
+
+	if stage1DB != nil {
+		wan, lan, uints := stage1DB.Pir.GetMetrics()
+		totalWAN += wan
+		totalLAN += lan
+		totalUint64 += uints
+	}
+	if stage2DB != nil {
+		wan, lan, uints := stage2DB.Pir.GetMetrics()
+		totalWAN += wan
+		totalLAN += lan
+		totalUint64 += uints
+	}
+	if stage3 != nil {
+		wan, lan, uints := stage3.Pir.GetMetrics()
+		totalWAN += wan
+		totalLAN += lan
+		totalUint64 += uints
+	}
+
+	// 6. Build the metadata map
+	metadata := make(map[string]interface{})
+	metadata["B"] = *B
+	metadata["R"] = *r
+	metadata["TotalAnswerTime"] = totalAnswerTime.String()
+	metadata["MRR"] = overallMRR
+	metadata["Recall"] = overallRecall
+	metadata["TotalWANTime"] = totalWAN
+	metadata["TotalLANTime"] = totalLAN
+	metadata["TotalUint64Sent"] = totalUint64
+	metadata["NumQueries"] = len(finalResults)
+
+	// 7. Write to metadata.json
+	writeMetadataJSON(*outJsonPath, metadata)
 
 	fmt.Printf("\nStage1 PIR Data and LAN and WAN time:")
 	stage1DB.Pir.PrintDataInfo()
@@ -230,18 +284,20 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	}
 }
 
-func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1PIRDB, stage2DB *bm25.Stage2Precomputed, luceneIdx *bm25.LuceneIndex, queriesPath string, maxQueries int, L int, s int, kCandidates int, k int, stage3 *bm25.Stage3Reranker, qrelsPath string, loadStage2HitsPath string, saveStage2HitsPath string, skipStage2 bool, queryWords int, constantPIRWork bool, resultsPath *string) {
+func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1PIRDB, stage2DB *bm25.Stage2Precomputed, luceneIdx *bm25.LuceneIndex, queriesPath string, maxQueries int, L int, s int, kCandidates int, k int, stage3 *bm25.Stage3Reranker, qrelsPath string, loadStage2HitsPath string, saveStage2HitsPath string, skipStage2 bool, queryWords int, constantPIRWork bool, resultsPath *string) map[string][]string {
 	// Read analyzed queries JSON file
 	data, err := os.ReadFile(queriesPath)
 	if err != nil {
 		fmt.Printf("Error reading analyzed queries file: %v\n", err)
-		return
+		syscall.Exit(-1)
 	}
+
+	finalResults := make(map[string][]string)
 
 	var analyzedQueries []AnalyzedQuery
 	if err := json.Unmarshal(data, &analyzedQueries); err != nil {
 		fmt.Printf("Error parsing analyzed queries JSON: %v\n", err)
-		return
+		syscall.Exit(-1)
 	}
 
 	// Load qrels (optional) for evaluation and MRR calculation
@@ -477,10 +533,29 @@ func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1P
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
 				writeResultsReranked(query.ID, docIDs, scores, k, resultsPath)
+				finalResults[query.ID] = docIDs
 			}
 		} else {
 			// Write original hitSubs results
 			writeResults(query.ID, hitSubs, k, luceneIdx, resultsPath)
+			// 3. CAPTURE UN-RERANKED IDs
+			limit := k
+			collected := make([]string, 0, limit)
+			for _, hit := range hitSubs {
+				for docID := hit.Start; docID < hit.End; docID++ {
+					if len(collected) >= limit {
+						break
+					}
+					if luceneIdx != nil {
+						if extID, err := luceneIdx.ConvertInternalToExternalID(docID); err == nil && extID != 0 {
+							collected = append(collected, fmt.Sprintf("%d", extID))
+						}
+					} else {
+						collected = append(collected, fmt.Sprintf("%d", docID))
+					}
+				}
+			}
+			finalResults[query.ID] = collected
 		}
 		queryCount++
 	}
@@ -504,6 +579,7 @@ func processAnalyzedQueries(layout *bm25.LayoutWithStats, stage1DB *bm25.Stage1P
 			}
 		}
 	}
+	return finalResults
 }
 
 // loadQrels loads qrels file (tsv with columns: qid docid relevance) into a map[qid]set(docid)
@@ -628,4 +704,73 @@ func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.Lu
 	}
 	writer.Flush()
 	return written
+}
+
+func calcOverallMRR(results map[string][]string, qrels map[string]map[string]bool) float64 {
+	sumMRR := 0.0
+	queryCount := 0
+
+	for qid, rankedDocs := range results {
+		relDocs, exists := qrels[qid]
+		if !exists || len(relDocs) == 0 {
+			continue
+		}
+
+		for i, docID := range rankedDocs {
+			if _, isRelevant := relDocs[docID]; isRelevant {
+				rank := i + 1
+				sumMRR += 1.0 / float64(rank)
+				break
+			}
+		}
+		queryCount++
+	}
+	if queryCount == 0 {
+		return 0.0
+	}
+	return sumMRR / float64(queryCount)
+}
+
+func calcOverallRecall(results map[string][]string, qrels map[string]map[string]bool) float64 {
+	sumRecall := 0.0
+	queryCount := 0
+
+	for qid, rankedDocs := range results {
+		relDocs, exists := qrels[qid]
+		if !exists || len(relDocs) == 0 {
+			continue
+		}
+
+		relevantRetrievedCount := 0
+		for _, docID := range rankedDocs {
+			if _, isRelevant := relDocs[docID]; isRelevant {
+				relevantRetrievedCount++
+			}
+		}
+
+		queryRecall := float64(relevantRetrievedCount) / float64(len(relDocs))
+		sumRecall += queryRecall
+		queryCount++
+	}
+	if queryCount == 0 {
+		return 0.0
+	}
+	return sumRecall / float64(queryCount)
+}
+
+func writeMetadataJSON(filename string, data map[string]interface{}) {
+	f, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating metadata file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(data); err != nil {
+		fmt.Printf("Error encoding metadata JSON: %v\n", err)
+	} else {
+		fmt.Printf("Wrote metadata to %s\n", filename)
+	}
 }

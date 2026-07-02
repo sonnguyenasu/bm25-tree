@@ -156,6 +156,21 @@ func (p *SimpleBatchPianoPIR) PrintDataInfo() {
 
 }
 
+// Add this alongside your existing PrintDataInfo() function
+func (p *SimpleBatchPianoPIR) GetMetrics() (float64, float64, uint64) {
+	totalWANTime := 0.0
+	totalLANTime := 0.0
+	var totalUint64 uint64 = 0
+
+	for sub := range p.subPIR {
+		subUint, subWAN, subLAN := ReturnMetrics(p.subPIR[sub].server)
+		totalUint64 += subUint
+		totalWANTime += subWAN
+		totalLANTime += subLAN
+	}
+	return totalWANTime, totalLANTime, totalUint64
+}
+
 func (p *SimpleBatchPianoPIR) PrintInfo() {
 	fmt.Printf("-----------BatchPIR config --------\n")
 	DBSizeInBytes := float64(p.config.DBSize) * float64(p.config.DBEntryByteNum)
