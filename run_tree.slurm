@@ -72,7 +72,8 @@ if [ "$dataset" == "msmarco" ]; then
     MAX_QUERIES=6980
     EMBED_DIM=192
 
-    LAYOUT_PATH="${DATA_ROOT}/layout_with_stats_${B_val}_${r_val}.json"
+    #LAYOUT_PATH="${DATA_ROOT}/layout_with_stats_${B_val}_${r_val}.json"
+    LAYOUT_PATH="${DATA_ROOT}/layout_with_stats.json"
 
     # These files have moved directly into the data/ folder
     QRELS="${DATA_ROOT}/qrels.dev.small.tsv"
