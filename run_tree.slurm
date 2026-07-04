@@ -134,6 +134,9 @@ elif [ "$dataset" == "scifact" ]; then
     # This sits in the main data/ directory
     BLOCK_PERMS="${DATA_ROOT}/scifact_block_permutations.json"
 
+    LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
+    python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
+
 
 elif [ "$dataset" == "trec-covid" ]; then
     DB_SIZE=171332
@@ -163,12 +166,13 @@ elif [ "$dataset" == "trec-covid" ]; then
     # This sits in the main data/ directory
     BLOCK_PERMS="${DATA_ROOT}/trec_block_permutations.json"
 
+    LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
+    python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
+
 else
     echo "Unknown dataset: $dataset"
     exit 1
 fi
-
-LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
 
 OUT_DIR="../results/tree_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}"
 mkdir -p "$OUT_DIR"
@@ -185,7 +189,7 @@ echo "Output Dir:    $OUT_DIR"
 echo "========================================"
 
 # Run the python layout generator
-python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
+# python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
 
 # Define log file name
 LOG_FILE="${OUT_DIR}/run_go_${dataset}_${method}_b${B_val}_r${r_val}_k${k_val}.log"
@@ -262,6 +266,6 @@ cat  "$LOG_FILE"
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true
 cp "logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "${OUT_DIR}/error.log" || true
 
-rm -f "$LAYOUT_PATH"
+# rm -f "$LAYOUT_PATH"
 
 echo "Execution finished."
