@@ -72,8 +72,9 @@ if [ "$dataset" == "msmarco" ]; then
     MAX_QUERIES=6980
     EMBED_DIM=192
 
-    #LAYOUT_PATH="${DATA_ROOT}/layout_with_stats_${B_val}_${r_val}.json"
+    # LAYOUT_PATH="${DATA_ROOT}/layout_with_stats_${SLURM_ARRAY_TASK_ID}.json"
     LAYOUT_PATH="${DATA_ROOT}/layout_with_stats.json"
+    # python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
 
     # These files have moved directly into the data/ folder
     QRELS="${DATA_ROOT}/qrels.dev.small.tsv"
@@ -82,6 +83,7 @@ if [ "$dataset" == "msmarco" ]; then
     DOC_ID_MAP="${DATA_ROOT}/stage3_doc_aligned.npy.ids"
     QUERY_EMBED="${DATA_ROOT}/stage3_query.npy"
     BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
+    # BLOCK_PERMS="${DATA_ROOT}/block_permutations_${B_val}.json"
 
     # Pointing directly to the directory with the Lucene segments
     INDEX="${DATA_ROOT}/msmarco_reordered"
