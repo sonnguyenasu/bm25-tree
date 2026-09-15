@@ -3,6 +3,7 @@ package pianopir
 import (
 	"fmt"
 	"log"
+	"math"
 	"sync"
 	"time"
 )
@@ -13,7 +14,7 @@ const (
 	RealQueryPerPartition = 2
 	QueryPerPartition     = 2
 	DefaultValue          = 0xdeadbeef
-	ThreadNum             = 1
+	DefaultThreadNum      = 1
 )
 
 type SimpleBatchPianoPIRConfig struct {
@@ -25,6 +26,57 @@ type SimpleBatchPianoPIRConfig struct {
 	PartitionSize   uint64
 	ThreadNum       uint64
 	FailureProbLog2 uint64
+	ConstantWork    bool // use public fixed partition padding and cache-hit dummies
+}
+
+const constantWorkOccupancyFailureBits = uint64(16)
+
+type constantWorkCapKey struct {
+	queryCount   int
+	partitionNum uint64
+	failureBits  uint64
+}
+
+var constantWorkCapCache sync.Map
+
+// constantWorkPartitionQueries returns a public high-probability upper bound
+// on the maximum occupancy when query rows are distributed among partitions.
+// It depends only on the public request count and partition count, never on the
+// queried locations. The union-bound overflow probability is at most 2^-bits.
+func constantWorkPartitionQueries(queryCount int, partitionNum, failureBits uint64) int {
+	if queryCount <= 0 {
+		return 0
+	}
+	if partitionNum <= 1 {
+		return queryCount
+	}
+	key := constantWorkCapKey{queryCount, partitionNum, failureBits}
+	if cached, ok := constantWorkCapCache.Load(key); ok {
+		return cached.(int)
+	}
+
+	p := 1.0 / float64(partitionNum)
+	probabilities := make([]float64, queryCount+1)
+	probabilities[0] = math.Pow(1.0-p, float64(queryCount))
+	for occupied := 1; occupied <= queryCount; occupied++ {
+		probabilities[occupied] = probabilities[occupied-1] *
+			float64(queryCount-occupied+1) / float64(occupied) * p / (1.0 - p)
+	}
+	targetTail := math.Ldexp(1.0, -int(failureBits)) / float64(partitionNum)
+	tail := 0.0
+	bound := queryCount
+	for occupied := queryCount; occupied >= 0; occupied-- {
+		tail += probabilities[occupied]
+		if tail > targetTail {
+			bound = occupied + 1
+			if bound > queryCount {
+				bound = queryCount
+			}
+			break
+		}
+	}
+	constantWorkCapCache.Store(key, bound)
+	return bound
 }
 
 // it's a simple batch PIR client
@@ -70,7 +122,7 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 		BatchSize:       BatchSize,
 		PartitionNum:    PartitionNum,
 		PartitionSize:   PartitionSize,
-		ThreadNum:       ThreadNum,
+		ThreadNum:       DefaultThreadNum,
 		FailureProbLog2: FailureProbLog2,
 	}
 
@@ -92,11 +144,34 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 	}
 }
 
+// SetConstantWork makes the amount of online work depend only on the public
+// request count. Cache hits are replaced with dummy server work by each sub-PIR.
+func (p *SimpleBatchPianoPIR) SetConstantWork(enabled bool) {
+	p.config.ConstantWork = enabled
+	for _, subPIR := range p.subPIR {
+		subPIR.SetConstantWork(enabled)
+	}
+}
+
+// SetThreadNum controls partition-level parallelism for preprocessing and
+// online queries. Each partition owns an independent PianoPIR instance, so
+// partitions can run concurrently while queries inside one partition remain
+// ordered. Values larger than the partition count are clamped.
+func (p *SimpleBatchPianoPIR) SetThreadNum(threadNum int) {
+	if threadNum < 1 {
+		threadNum = 1
+	}
+	if uint64(threadNum) > p.config.PartitionNum {
+		threadNum = int(p.config.PartitionNum)
+	}
+	p.config.ThreadNum = uint64(threadNum)
+}
+
 func (p *SimpleBatchPianoPIR) PrintInfo() {
 	fmt.Printf("-----------BatchPIR config --------\n")
 	DBSizeInBytes := float64(p.config.DBSize) * float64(p.config.DBEntryByteNum)
 	fmt.Printf("DB size in MB = %v\n", DBSizeInBytes/1024/1024)
-	fmt.Printf("DBSize: %v, DBEntryByteNum: %v, BatchSize: %v, PartitionNum: %v, PartitionSize: %v, ThreadNum: %v, FailureProbLog2: %v\n", p.config.DBSize, p.config.DBEntryByteNum, p.config.BatchSize, p.config.PartitionNum, p.config.PartitionSize, p.config.ThreadNum, p.config.FailureProbLog2)
+	fmt.Printf("DBSize: %v, DBEntryByteNum: %v, BatchSize: %v, PartitionNum: %v, PartitionSize: %v, ThreadNum: %v, FailureProbLog2: %v, ConstantWork: %v\n", p.config.DBSize, p.config.DBEntryByteNum, p.config.BatchSize, p.config.PartitionNum, p.config.PartitionSize, p.config.ThreadNum, p.config.FailureProbLog2, p.config.ConstantWork)
 	maxQuery := p.subPIR[0].client.MaxQueryNum / QueryPerPartition
 	fmt.Printf("max query num = %v\n", maxQuery)
 	fmt.Printf("max query per chunk = %v\n", p.subPIR[0].client.maxQueryPerChunk)
@@ -211,7 +286,7 @@ func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 //                 // Use a random index within the database range
 //                 paddedBatch[k] = uint32(rand.Intn(int(p.config.DBSize)))
 //             }
-            
+
 //             // Swap the slice to use the padded version
 //             currentBatch = paddedBatch
 //         }
@@ -237,50 +312,107 @@ func (p *SimpleBatchPianoPIR) DummyPreprocessing() {
 // }
 
 func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
+	if len(idx) == 0 {
+		return [][]uint64{}, nil
+	}
 
-	// first identify in average how many queries in each partition we need to make
-
-	// this is different from the default
-	// queryNumToMake := len(idx) / int(p.config.PartitionNum)
-	queryNumToMake := (len(idx) + int(p.config.PartitionNum) - 1) / int(p.config.PartitionNum)
-	// first arrange the queries into the partitions
+	// Arrange the requests first, then use the maximum occupancy. The previous
+	// average occupancy silently discarded requests in overloaded partitions.
 	partitionQueries := make([][]uint64, p.config.PartitionNum)
 	for i := 0; i < len(idx); i++ {
 		partitionIdx := idx[i] / p.config.PartitionSize
+		if partitionIdx >= p.config.PartitionNum {
+			return nil, fmt.Errorf("BatchPIR index %d is outside database of size %d", idx[i], p.config.DBSize)
+		}
 		partitionQueries[partitionIdx] = append(partitionQueries[partitionIdx], idx[i])
+	}
+	observedMaxOccupancy := 0
+	for i := uint64(0); i < p.config.PartitionNum; i++ {
+		if len(partitionQueries[i]) > observedMaxOccupancy {
+			observedMaxOccupancy = len(partitionQueries[i])
+		}
+	}
+	queryNumToMake := observedMaxOccupancy
+	if p.config.ConstantWork {
+		queryNumToMake = constantWorkPartitionQueries(
+			len(idx), p.config.PartitionNum, constantWorkOccupancyFailureBits,
+		)
+		if observedMaxOccupancy > queryNumToMake {
+			return nil, fmt.Errorf(
+				"BatchPIR constant-work occupancy overflow: observed %d queries in one partition, public bound is %d",
+				observedMaxOccupancy, queryNumToMake,
+			)
+		}
+	}
+	if uint64(queryNumToMake) >= p.subPIR[0].client.MaxQueryNum-2 {
+		return nil, fmt.Errorf(
+			"BatchPIR request needs %d queries in one partition; maximum is %d",
+			queryNumToMake, p.subPIR[0].client.MaxQueryNum-2,
+		)
+	}
+	if p.QueriesMadeInPartition+uint64(queryNumToMake) >= p.subPIR[0].client.MaxQueryNum-2 {
+		fmt.Printf("Redo preprocessing before query (%d queries used, %d requested)\n",
+			p.QueriesMadeInPartition, queryNumToMake)
+		p.Preprocessing()
 	}
 
 	//fmt.Println("partitionQueries: ", partitionQueries)
 
-	// we make a map from index to their responses
-	responses := make(map[uint64][]uint64)
-
-	for i := uint64(0); i < p.config.PartitionNum; i++ {
-		//start := i * p.config.PartitionSize
-		//end := min((i+1)*p.config.PartitionSize, p.config.DBSize)
-
-		// case 1: if there are not enough queries, just pad with random indices in the partition
-		if len(partitionQueries[i]) < queryNumToMake {
-			for j := len(partitionQueries[i]); j < queryNumToMake; j++ {
-				partitionQueries[i] = append(partitionQueries[i], DefaultValue)
+	// Each partition owns an independent Piano client/server pair. Run
+	// partitions concurrently, but preserve request order within a partition
+	// because Piano updates state after every real query.
+	partitionResponses := make([]map[uint64][]uint64, p.config.PartitionNum)
+	jobs := make(chan uint64)
+	var workers sync.WaitGroup
+	var firstErr error
+	var errOnce sync.Once
+	workers.Add(int(p.config.ThreadNum))
+	for worker := uint64(0); worker < p.config.ThreadNum; worker++ {
+		go func() {
+			defer workers.Done()
+			for partition := range jobs {
+				queries := partitionQueries[partition]
+				for len(queries) < queryNumToMake {
+					queries = append(queries, DefaultValue)
+				}
+				localResponses := make(map[uint64][]uint64)
+				for queryIndex := 0; queryIndex < queryNumToMake; queryIndex++ {
+					row := queries[queryIndex]
+					if row == DefaultValue {
+						if _, err := p.subPIR[partition].Query(0, false); err != nil {
+							errOnce.Do(func() {
+								firstErr = fmt.Errorf("partition %d dummy query %d failed: %w", partition, queryIndex, err)
+							})
+							break
+						}
+						continue
+					}
+					response, err := p.subPIR[partition].Query(row-partition*p.config.PartitionSize, true)
+					if err != nil {
+						errOnce.Do(func() {
+							firstErr = fmt.Errorf("partition %d query %d failed: %w", partition, queryIndex, err)
+						})
+						break
+					}
+					localResponses[row] = response
+				}
+				partitionResponses[partition] = localResponses
 			}
-		}
+		}()
+	}
+	for partition := uint64(0); partition < p.config.PartitionNum; partition++ {
+		jobs <- partition
+	}
+	close(jobs)
+	workers.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
 
-		// now we make queryNumToMake queries to the sub PIR
-		for j := uint64(0); j < uint64(queryNumToMake); j++ {
-			if partitionQueries[i][j] == DefaultValue {
-				_, _ = p.subPIR[i].Query(0, false) // just make a dummy query
-			} else {
-				query, _ := p.subPIR[i].Query(partitionQueries[i][j]-i*p.config.PartitionSize, true)
-				//if err != nil {
-
-				//log.Printf("the queries to this sub pir is: %v, the offset is %v\n", partitionQueries[i], partitionQueries[i][j]-i*p.config.PartitionSize)
-				//log.Printf("All the queries are %v\n", partitionQueries)
-				//log.Printf("SimpleBatchPianoPIR.Query: subPIR[%v].Query(%v) failed: %v\n", i, partitionQueries[i][j], err)
-				//	return nil, err
-				//	}
-				responses[partitionQueries[i][j]] = query
-			}
+	responses := make(map[uint64][]uint64, len(idx))
+	for _, localResponses := range partitionResponses {
+		for row, response := range localResponses {
+			responses[row] = response
 		}
 	}
 
@@ -295,23 +427,12 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 		if response, ok := responses[idx[i]]; ok {
 			ret[i] = response
 		} else {
-			// otherwise just make a zero response
-			ret[i] = make([]uint64, p.config.DBEntrySize)
-			for j := uint64(0); j < p.config.DBEntrySize; j++ {
-				ret[i][j] = 0
-			}
+			return nil, fmt.Errorf("BatchPIR produced no response for database row %d", idx[i])
 		}
 	}
 
-	// now test if the subPIR has reached the max query num, redo the preprocessing
-	// -2 means we want to do the preprocessing before the last query
-	if p.QueriesMadeInPartition >= p.subPIR[0].client.MaxQueryNum-2 {
-		fmt.Printf("Redo preprocessing. Made %v batches (%v queries in a partition), redo the preprocessing\n", p.FinishedBatchNum, p.QueriesMadeInPartition)
-		p.Preprocessing()
-	} else {
-		p.FinishedBatchNum += uint64(len(idx) / int(p.config.BatchSize))
-		p.QueriesMadeInPartition += uint64(queryNumToMake)
-	}
+	p.FinishedBatchNum += (uint64(queryNumToMake) + QueryPerPartition - 1) / QueryPerPartition
+	p.QueriesMadeInPartition += uint64(queryNumToMake)
 
 	return ret, nil
 }

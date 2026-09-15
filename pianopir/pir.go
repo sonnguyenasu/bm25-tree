@@ -26,8 +26,9 @@ type PianoPIRConfig struct {
 }
 
 type PianoPIRServer struct {
-	config *PianoPIRConfig
-	rawDB  []uint64
+	config            *PianoPIRConfig
+	rawDB             []uint64
+	privateQueryCount uint64
 }
 
 // an initialization function for the server
@@ -63,6 +64,7 @@ func (s *PianoPIRServer) NonePrivateQuery(idx uint64) ([]uint64, error) {
 
 // the private query just computes the xor sum of the elements in the idxs list
 func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
+	s.privateQueryCount++
 	ret := make([]uint64, s.config.DBEntrySize)
 	// initialize ret to be all zeros
 	for i := uint64(0); i < s.config.DBEntrySize; i++ {
@@ -119,6 +121,9 @@ type PianoPIRClient struct {
 
 	// local cache
 	localCache map[uint64][]uint64
+
+	constantWork  bool
+	dummyScanSink uint64
 }
 
 func primaryNumParam(Q float64, ChunkSize float64, target uint64) uint64 {
@@ -254,14 +259,17 @@ func (c *PianoPIRClient) Initialization() {
 	c.localCache = make(map[uint64][]uint64)
 }
 
-// entrySize has to be a multiple of 4 !!!!!!!!!!!!!
+// EntryXor uses the vectorized kernel for complete four-word groups and a
+// scalar tail for short/non-aligned entries. Stage 2 stores four uint8 scores
+// in one uint64, so silently requiring a four-word entry corrupts its result.
 func EntryXor(a []uint64, b []uint64, entrySize uint64) {
-
-	xorSlices(a, b, int(entrySize))
-
-	//for i := uint64(0); i < entrySize; i++ {
-	//	a[i] ^= b[i]
-	//	}
+	vectorWords := entrySize - entrySize%4
+	if vectorWords > 0 {
+		xorSlices(a[:vectorWords], b[:vectorWords], int(vectorWords))
+	}
+	for i := vectorWords; i < entrySize; i++ {
+		a[i] ^= b[i]
+	}
 }
 
 func (c *PianoPIRClient) Preprocessing(rawDB []uint64) {
@@ -361,13 +369,7 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 
 	// if it's a dummy query, then just generate c.config.SetSize random numbers between 0...c.config.ChunkSize
 	if !realQuery {
-		offsets := make([]uint32, c.config.SetSize)
-		for i := uint64(0); i < c.config.SetSize; i++ {
-			offsets[i] = uint32(rand.Uint64() & (c.config.ChunkSize - 1))
-		}
-		_, err := server.PrivateQuery(offsets)
-
-		return ret, err
+		return ret, c.constantWorkDummyQuery(idx, server)
 	}
 
 	if idx >= c.config.DBSize {
@@ -379,6 +381,11 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 
 	// if the idx is in the local cache, then return the result from the local cache
 	if v, ok := c.localCache[idx]; ok {
+		if c.constantWork {
+			if err := c.constantWorkDummyQuery(idx, server); err != nil {
+				return ret, err
+			}
+		}
 		return v, nil
 	}
 
@@ -406,9 +413,11 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 		hintOffset := PRFEvalWithLongKeyAndTag(c.longKey, c.primaryShortTag[i], uint64(chunkId)) & (c.config.ChunkSize - 1)
 		if hintOffset == offset {
 			// if this chunk has been programmed in this chunk before, then it shouldn't count
-			if c.primaryProgramPoint[i] == DefaultProgramPoint || (c.primaryProgramPoint[i]/c.config.ChunkSize != chunkId) {
+			if hitId == DefaultProgramPoint && (c.primaryProgramPoint[i] == DefaultProgramPoint || (c.primaryProgramPoint[i]/c.config.ChunkSize != chunkId)) {
 				hitId = i
-				break
+				if !c.constantWork {
+					break
+				}
 			}
 		}
 	}
@@ -470,10 +479,43 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 	return response, err
 }
 
+// constantWorkDummyQuery performs the same server-sized request as a real
+// query. In constant-work mode it also scans every primary hint so a local
+// cache hit does not create the large client-side timing shortcut.
+func (c *PianoPIRClient) constantWorkDummyQuery(idx uint64, server *PianoPIRServer) error {
+	if c.constantWork {
+		chunkID := uint64(0)
+		offset := uint64(0)
+		if c.config.DBSize > 0 {
+			idx %= c.config.DBSize
+			chunkID = idx / c.config.ChunkSize
+			offset = idx % c.config.ChunkSize
+		}
+		matched := uint64(0)
+		for i := uint64(0); i < c.primaryHintNum; i++ {
+			hintOffset := PRFEvalWithLongKeyAndTag(c.longKey, c.primaryShortTag[i], chunkID) & (c.config.ChunkSize - 1)
+			if hintOffset == offset {
+				matched ^= i + 1
+			}
+		}
+		c.dummyScanSink = matched
+	}
+	offsets := make([]uint32, c.config.SetSize)
+	for i := uint64(0); i < c.config.SetSize; i++ {
+		offsets[i] = uint32(rand.Uint64() & (c.config.ChunkSize - 1))
+	}
+	_, err := server.PrivateQuery(offsets)
+	return err
+}
+
 type PianoPIR struct {
 	config *PianoPIRConfig
 	client *PianoPIRClient
 	server *PianoPIRServer
+}
+
+func (p *PianoPIR) SetConstantWork(enabled bool) {
+	p.client.constantWork = enabled
 }
 
 func NewPianoPIR(DBSize uint64, DBEntryByteNum uint64, rawDB []uint64, FailureProbLog2 uint64) *PianoPIR {

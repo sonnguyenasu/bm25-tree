@@ -209,9 +209,17 @@ func NewStage3Reranker(
 			embedUint64,
 			20, // FailureProbLog2
 		)
+		sr.pir.SetThreadNum(PIRThreads)
+		sr.pir.SetConstantWork(PIRConstantWork)
 		fmt.Printf("Stage3 PIR (Blocking Mode): initialized with DBSize=%d blocks, EntrySize=%d bytes (8 docs/block), BatchSize=%d\n", dbSize, entrySizeBytes, batchSize)
 		sr.pir.Preprocessing()
 		fmt.Printf("Stage3 PIR: preprocessing complete\n")
+		if StrictPIR {
+			if err := verifyPackedPIR("Stage3", sr.pir, embedUint64, dbEntrySizeUint64); err != nil {
+				return nil, err
+			}
+			fmt.Printf("Stage3 PIR: verified 32 sampled packed rows\n")
+		}
 		sr.pirUsable = true
 	}
 
@@ -328,6 +336,9 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 	// 3. Execute Batch Query
 	responses, err := sr.pir.Query(queryBlocks)
 	if err != nil {
+		if StrictPIR {
+			panic(fmt.Sprintf("Stage3 PIR batch query failed: %v", err))
+		}
 		fmt.Printf("Stage3 PIR batch query error: %v, falling back to direct read\n", err)
 		for _, idx := range docIndices {
 			result[idx] = sr.getDocEmbeddingDirect(idx)
@@ -338,7 +349,21 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 	// 4. Unpack responses into map: PhysicalBlockID -> Data
 	blockData := make(map[uint64][]byte)
 	for i, bid := range queryBlocks {
-		blockData[bid] = convertUint64ToBytes(responses[i])
+		data := convertUint64ToBytes(responses[i])
+		if StrictPIR {
+			entryBytes := sr.EmbedDim * sr.BytesPerElem * blockSize
+			start := int(bid) * entryBytes
+			end := start + entryBytes
+			if end > len(sr.docEmbedMmap) || len(data) < entryBytes {
+				panic(fmt.Sprintf("Stage3 PIR block %d has invalid response bounds", bid))
+			}
+			for offset := 0; offset < entryBytes; offset++ {
+				if data[offset] != sr.docEmbedMmap[start+offset] {
+					panic(fmt.Sprintf("Stage3 PIR block %d byte %d mismatch: got %#x, want %#x", bid, offset, data[offset], sr.docEmbedMmap[start+offset]))
+				}
+			}
+		}
+		blockData[bid] = data
 	}
 
 	// 5. Extract specific embeddings from retrieved blocks

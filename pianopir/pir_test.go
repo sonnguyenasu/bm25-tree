@@ -150,9 +150,9 @@ func TestBatchPIRBasic(t *testing.T) {
 
 	//t.Logf("Batch PIR.Query(%v) passed", batchQuery)
 
-	// now make another batch query
-	// it only has queries in the first partition
-	// so only the first PartitionQueryNum queries should be correct
+	// Make another batch query concentrated in the first partition. Query now
+	// expands to the maximum partition occupancy, so every response must be
+	// returned instead of silently dropping all but QueryPerPartition entries.
 
 	querySet := make(map[uint64]bool)
 	batchQuery = make([]uint64, 0, BatchSize)
@@ -167,12 +167,6 @@ func TestBatchPIRBasic(t *testing.T) {
 		batchQuery = append(batchQuery, idx)
 	}
 
-	// now make a batch query
-	// only the first PartitionQueryNum queries should be correct
-	// the rest should be all zeros
-
-	//fmt.Println("batchQuery: ", batchQuery)
-
 	responses, err = PIR.Query(batchQuery)
 
 	if err != nil {
@@ -183,20 +177,103 @@ func TestBatchPIRBasic(t *testing.T) {
 		idx := batchQuery[i]
 		query := responses[i]
 
-		if i < QueryPerPartition {
-			// check if the first PartitionQueryNum queries are correct
-			for j := uint64(0); j < DBEntrySize; j++ {
-				if query[j] != rawDB[idx*DBEntrySize+j] {
-					t.Errorf("query[%v] = %v; want %v", idx, query[j], rawDB[idx*DBEntrySize+j])
-				}
+		for j := uint64(0); j < DBEntrySize; j++ {
+			if query[j] != rawDB[idx*DBEntrySize+j] {
+				t.Errorf("query[%v] = %v; want %v", idx, query[j], rawDB[idx*DBEntrySize+j])
 			}
-		} else {
-			// otherwise check if they are all zeros
-			for j := uint64(0); j < DBEntrySize; j++ {
-				if query[j] != 0 {
-					t.Errorf("query[%v] = %v; want 0", idx, query[j])
-				}
+		}
+	}
+}
+
+func TestBatchPIRSingleWordEntries(t *testing.T) {
+	const (
+		dbSize    = uint64(8192)
+		batchSize = uint64(32)
+	)
+	rawDB := make([]uint64, dbSize)
+	for i := range rawDB {
+		rawDB[i] = uint64(i) + 1
+	}
+
+	pir := NewSimpleBatchPianoPIR(dbSize, 8, batchSize, rawDB, 20)
+	pir.Preprocessing()
+	indices := make([]uint64, pir.Config().PartitionNum)
+	for i := range indices {
+		indices[i] = uint64(i)*pir.Config().PartitionSize + uint64(i)
+	}
+	responses, err := pir.Query(indices)
+	if err != nil {
+		t.Fatalf("single-word BatchPIR query failed: %v", err)
+	}
+	for i, index := range indices {
+		if len(responses[i]) != 1 || responses[i][0] != rawDB[index] {
+			t.Fatalf("row %d: got %v, want [%#x]", index, responses[i], rawDB[index])
+		}
+	}
+}
+
+func TestConstantWorkPartitionQueries(t *testing.T) {
+	tests := []struct {
+		queries    int
+		partitions uint64
+		want       int
+	}{
+		{4, 64, 4},
+		{512, 64, 27},
+		{1600, 64, 55},
+		{32, 16, 12},
+	}
+	for _, test := range tests {
+		if got := constantWorkPartitionQueries(test.queries, test.partitions, constantWorkOccupancyFailureBits); got != test.want {
+			t.Fatalf("constantWorkPartitionQueries(%d,%d)=%d; want %d", test.queries, test.partitions, got, test.want)
+		}
+	}
+}
+
+func TestBatchPIRConstantWorkRepeatedRows(t *testing.T) {
+	const (
+		dbSize    = uint64(8192)
+		batchSize = uint64(32)
+	)
+	rawDB := make([]uint64, dbSize)
+	for i := range rawDB {
+		rawDB[i] = uint64(i) + 17
+	}
+	pir := NewSimpleBatchPianoPIR(dbSize, 8, batchSize, rawDB, 20)
+	pir.SetThreadNum(4)
+	pir.SetConstantWork(true)
+	pir.Preprocessing()
+	if got := pir.Config().ThreadNum; got != 4 {
+		t.Fatalf("parallel BatchPIR uses %d threads; want 4", got)
+	}
+	indices := make([]uint64, pir.Config().PartitionNum)
+	for i := range indices {
+		indices[i] = uint64(i)*pir.Config().PartitionSize + uint64(i)
+	}
+	for repetition := 0; repetition < 2; repetition++ {
+		serverCallsBefore := uint64(0)
+		for _, subPIR := range pir.subPIR {
+			serverCallsBefore += subPIR.server.privateQueryCount
+		}
+		responses, err := pir.Query(indices)
+		if err != nil {
+			t.Fatalf("constant-work repetition %d failed: %v", repetition, err)
+		}
+		for i, index := range indices {
+			if len(responses[i]) != 1 || responses[i][0] != rawDB[index] {
+				t.Fatalf("repetition %d row %d: got %v, want [%#x]", repetition, index, responses[i], rawDB[index])
 			}
+		}
+		serverCallsAfter := uint64(0)
+		for _, subPIR := range pir.subPIR {
+			serverCallsAfter += subPIR.server.privateQueryCount
+		}
+		partitionQueries := constantWorkPartitionQueries(
+			len(indices), pir.Config().PartitionNum, constantWorkOccupancyFailureBits,
+		)
+		wantCalls := uint64(partitionQueries) * pir.Config().PartitionNum
+		if gotCalls := serverCallsAfter - serverCallsBefore; gotCalls != wantCalls {
+			t.Fatalf("repetition %d made %d server queries; want fixed %d", repetition, gotCalls, wantCalls)
 		}
 	}
 }

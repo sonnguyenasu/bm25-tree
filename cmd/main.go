@@ -28,6 +28,7 @@ func main() {
 	bParam := flag.Float64("b", 0.4, "BM25, b parameter")
 	qrels := flag.String("qrels", "", "Path to qrels file for evaluation")
 	precompute := flag.Bool("precompute", false, "If set, load precomputed layout and stats from storage")
+	disablePIR := flag.Bool("disable-pir", false, "Load precomputed artifacts but use direct row access (diagnostic only)")
 	stage1DataBin := flag.String("stage1-data-bin", "", "Path to Stage-1, data.bin")
 	stage1IdmapBin := flag.String("stage1-idmap-bin", "", "Path to Stage-1, idmap.bin")
 	stage2DataBin := flag.String("stage2-data-bin", "", "Path to Stage-1, data.bin")
@@ -43,6 +44,15 @@ func main() {
 	embedDim := flag.Int("embed-dim", 192, "Embedding dimensionality for Stage3 reranker")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	queryWords := flag.Int("query-words", 8, "Fixed number of words in query (pad with dummy if needed)")
+	strictPIR := flag.Bool("strict-pir", false, "Verify PIR responses against the local plaintext database (diagnostic)")
+	pirConstantWork := flag.Bool("pir-constant-work", false, "Use public fixed BatchPIR padding and dummy work for cache hits")
+	pirThreads := flag.Int("pir-threads", 1, "Maximum number of BatchPIR partitions processed concurrently")
+	pirCoverQueries := flag.Bool("pir-cover-queries", false, "Deprecated: physical Cuckoo mode always issues exactly two probes")
+	pirShuffleRows := flag.Bool("pir-shuffle-rows", false, "Deprecated: physical Cuckoo hashing distributes rows")
+	cuckooLoadFactor := flag.Float64("cuckoo-load-factor", 0.4, "Cuckoo table load factor (must be below 0.5 for two hashes)")
+	cuckooMaxKicks := flag.Int("cuckoo-max-kicks", 1000, "Maximum displacement steps per Cuckoo insertion")
+	cuckooBuildAttempts := flag.Int("cuckoo-build-attempts", 8, "Maximum full-table Cuckoo rehash attempts")
+	cuckooCacheDir := flag.String("cuckoo-cache-dir", "", "Optional directory for persistent physical Cuckoo tables")
 
 	// Stage2 hit load/save flags for Stage3-only runs
 	loadStage2Hits := flag.String("load-stage2-hits", "", "Path to JSON file containing saved Stage2 hitSubs (map qid->[]HitSubBlock)")
@@ -52,6 +62,16 @@ func main() {
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
 	bm25.Debug = *debug
+	bm25.StrictPIR = *strictPIR
+	bm25.PIRConstantWork = *pirConstantWork
+	if *pirThreads < 1 {
+		fmt.Println("--pir-threads must be at least 1")
+		os.Exit(1)
+	}
+	bm25.PIRThreads = *pirThreads
+	if *pirCoverQueries || *pirShuffleRows {
+		fmt.Println("Note: --pir-cover-queries/--pir-shuffle-rows are ignored; faithful Cuckoo access is now unconditional in PIR mode")
+	}
 	// Validate required flags (qrels optional for Stage3-only runs)
 	if *index == "" || *queries == "" {
 		fmt.Println("Required flags: --index, --queries")
@@ -71,13 +91,19 @@ func main() {
 
 	// Load Stage1, database
 	// Enable PIR if using precomputation
-	enablePIR := *precompute
+	enablePIR := *precompute && !*disablePIR
 	batchSize := uint64(*pirBatchSize)
+	cuckooConfig := bm25.CuckooBuildConfig{
+		LoadFactor:    *cuckooLoadFactor,
+		MaxKicks:      *cuckooMaxKicks,
+		BuildAttempts: *cuckooBuildAttempts,
+		CacheDir:      *cuckooCacheDir,
+	}
 
 	var err error
 
 	// Load Stage1, database with optional PIR support
-	stage1DB, err := bm25.NewStage1PIRDBWithPIR(*stage1DataBin, *stage1IdmapBin, *vocab, *r, enablePIR, batchSize)
+	stage1DB, err := bm25.NewStage1PIRDBWithCuckoo(*stage1DataBin, *stage1IdmapBin, *vocab, *r, enablePIR, batchSize, cuckooConfig)
 	if err != nil {
 		fmt.Printf("Error loading Stage1, database: %v\n", err)
 		os.Exit(1)
@@ -87,15 +113,16 @@ func main() {
 	// Load Stage2, database (skip if requested or if loading saved hitSubs)
 	var stage2DB *bm25.Stage2Precomputed = nil
 	if !*skipStage2 && *loadStage2Hits == "" {
-		stage2DB, err = bm25.NewStage2PrecomputedWithPIR(
-			*stage2DataBin,//"data/stage2/data.bin",
-			*stage2IdmapBin,//"data/stage2/idmap.bin",
+		stage2DB, err = bm25.NewStage2PrecomputedWithCuckoo(
+			*stage2DataBin,  //"data/stage2/data.bin",
+			*stage2IdmapBin, //"data/stage2/idmap.bin",
 			*vocab,
 			*B,
 			*s,
 			*scale,
 			enablePIR, // Use same enablePIR flag as Stage1
 			batchSize,
+			cuckooConfig,
 		)
 		if err != nil {
 			fmt.Printf("Error loading Stage2, database: %v\n", err)
@@ -116,7 +143,7 @@ func main() {
 	var layout *bm25.LayoutWithStats
 	if *precompute {
 		// Load from file
-		layout, err = loadLayout(*layoutPath)//"./data/layout_with_stats.json")
+		layout, err = loadLayout(*layoutPath) //"./data/layout_with_stats.json")
 		if err != nil {
 			fmt.Printf("Error loading layout: %v\n", err)
 			os.Exit(1)
@@ -194,9 +221,9 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	if targetLength <= 0 {
 		return terms, originalLen
 	}
-	
+
 	normalized := make([]string, targetLength)
-	
+
 	if len(terms) >= targetLength {
 		// Truncate if too many terms
 		copy(normalized, terms[:targetLength])
@@ -204,11 +231,10 @@ func normalizeQueryTerms(terms []string, targetLength int) ([]string, int) {
 	} else {
 		// Copy existing terms
 		copy(normalized, terms)
-		// Pad with a word from vocabulary (for PIR privacy)
-		// Note: "what" has low IDF but will still affect scores!
-		// TODO: Use a special padding token with no postings
+		// Use an OOV token. Physical Cuckoo mode still performs both probes, but
+		// the returned key cannot match and therefore contributes a zero score.
 		for i := len(terms); i < targetLength; i++ {
-			normalized[i] = "what"
+			normalized[i] = fmt.Sprintf("__pir_padding_%d__", i)
 		}
 		return normalized, originalLen
 	}
@@ -293,6 +319,10 @@ func processAnalyzedQueries(
 
 	// Process each analyzed query
 	queryCount := 0
+	var round1Total time.Duration
+	var round2Total time.Duration
+	var round3Total time.Duration
+	var retrievalTotal time.Duration
 	for _, query := range analyzedQueries {
 		if maxQueries > 0 && queryCount >= maxQueries {
 			break
@@ -306,7 +336,7 @@ func processAnalyzedQueries(
 		// But track original length so padding doesn't affect scores
 		query.Terms, query.OriginalLength = normalizeQueryTerms(query.Terms, queryWords)
 		realTerms := query.Terms[:query.OriginalLength] // Terms to use for actual scoring
-		
+
 		if bm25.Debug || true {
 			fmt.Printf("  Original terms (%d): %v\n", query.OriginalLength, realTerms)
 			if len(query.Terms) > query.OriginalLength {
@@ -329,11 +359,14 @@ func processAnalyzedQueries(
 			fmt.Printf("  Total matched terms: %d/%d\n", matched, len(query.Terms))
 		}
 
-		// Round 1: Beam search (use only real terms, not padding)
+		retrievalStarted := time.Now()
+
+		// Padding terms are OOV and affect cover traffic, not score accumulation.
 		// time the runtime
 		start := time.Now()
-		leafNodes := bm25.Round1BeamPrecomputed(layout, realTerms, L, stage1DB)
+		leafNodes := bm25.Round1BeamPrecomputed(layout, query.Terms, L, stage1DB)
 		elapsed := time.Since(start)
+		round1Total += elapsed
 		fmt.Printf("Round 1, took %s\n", elapsed)
 
 		// fmt.Println("Round 1, completed. Result:", leafNodes) // Debug output removed
@@ -352,10 +385,11 @@ func processAnalyzedQueries(
 			// Skipping Stage2: no hits
 			hitSubs = nil
 		} else {
-			// record runtime (use only real terms, not padding)
+			// record runtime
 			timeStart := time.Now()
-			hitSubs = bm25.Round2BMWPrecomputed(layout, leafNodes, realTerms, s, kCandidates, stage2DB)
+			hitSubs = bm25.Round2BMWPrecomputed(layout, leafNodes, query.Terms, s, kCandidates, stage2DB)
 			timeElapsed := time.Since(timeStart)
+			round2Total += timeElapsed
 			fmt.Printf("Round 2, took %s\n", timeElapsed)
 			// If requested, save hits for this query
 			if savedHits != nil {
@@ -437,10 +471,11 @@ func processAnalyzedQueries(
 				}
 			}
 			// Get reranked IDs/scores from Stage3
-			
+
 			start = time.Now()
 			docIDs, scores, mrrFromStage3 := stage3.Rerank(hitSubs, qIdx, goldSetForStage3, luceneIdx)
 			elapsed = time.Since(start)
+			round3Total += elapsed
 			fmt.Printf("Round 3, took %s\n", elapsed)
 
 			// Stage3 reranker already returns external doc IDs via DocIDMap, so no conversion needed
@@ -453,7 +488,37 @@ func processAnalyzedQueries(
 			// Write original hitSubs results
 			writeResults(query.ID, hitSubs, k, luceneIdx)
 		}
+		retrievalTotal += time.Since(retrievalStarted)
 		queryCount++
+	}
+
+	if queryCount > 0 {
+		physicalCuckoo := len(stage1DB.Levels) > 0
+		actualLoadFactor := float64(0)
+		if physicalCuckoo && stage1DB.Levels[0] != nil {
+			actualLoadFactor = float64(stage1DB.Levels[0].Table.ItemCount) / float64(stage1DB.Levels[0].Table.SlotCount)
+		}
+		summary := map[string]interface{}{
+			"queries":                 queryCount,
+			"round1_total_seconds":    round1Total.Seconds(),
+			"round2_total_seconds":    round2Total.Seconds(),
+			"round3_total_seconds":    round3Total.Seconds(),
+			"retrieval_total_seconds": retrievalTotal.Seconds(),
+			"round1_avg_seconds":      round1Total.Seconds() / float64(queryCount),
+			"round2_avg_seconds":      round2Total.Seconds() / float64(queryCount),
+			"round3_avg_seconds":      round3Total.Seconds() / float64(queryCount),
+			"retrieval_avg_seconds":   retrievalTotal.Seconds() / float64(queryCount),
+			"strict_pir":              bm25.StrictPIR,
+			"pir_constant_work":       bm25.PIRConstantWork,
+			"pir_threads":             bm25.PIRThreads,
+			"query_words":             queryWords,
+			"cuckoo_load_factor":      actualLoadFactor,
+			"cuckoo_hash_functions":   2,
+			"physical_cuckoo":         physicalCuckoo,
+			"stage1_level_databases":  len(stage1DB.Levels),
+		}
+		encoded, _ := json.Marshal(summary)
+		fmt.Printf("RUNTIME_SUMMARY_JSON=%s\n", encoded)
 	}
 
 	// If we collected Stage2 hits to save, write them out as JSON
