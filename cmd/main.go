@@ -46,7 +46,7 @@ func main() {
 	queryWords := flag.Int("query-words", 8, "Fixed number of words in query (pad with dummy if needed)")
 	strictPIR := flag.Bool("strict-pir", false, "Verify PIR responses against the local plaintext database (diagnostic)")
 	pirConstantWork := flag.Bool("pir-constant-work", false, "Use public fixed BatchPIR padding and dummy work for cache hits")
-	pirThreads := flag.Int("pir-threads", 1, "Maximum number of BatchPIR partitions processed concurrently")
+	pirThreads := flag.Int("pir-threads", 15, "Maximum number of BatchPIR partitions processed concurrently")
 	pirCoverQueries := flag.Bool("pir-cover-queries", false, "Deprecated: physical Cuckoo mode always issues exactly two probes")
 	pirShuffleRows := flag.Bool("pir-shuffle-rows", false, "Deprecated: physical Cuckoo hashing distributes rows")
 	cuckooLoadFactor := flag.Float64("cuckoo-load-factor", 0.4, "Cuckoo table load factor (must be below 0.5 for two hashes)")
@@ -58,6 +58,8 @@ func main() {
 	loadStage2Hits := flag.String("load-stage2-hits", "", "Path to JSON file containing saved Stage2 hitSubs (map qid->[]HitSubBlock)")
 	saveStage2Hits := flag.String("save-stage2-hits", "", "If set, save computed Stage2 hitSubs to this JSON file")
 	skipStage2 := flag.Bool("skip-stage2", false, "If set, do not initialize Stage2 DB (use --load-stage2-hits to provide hits)")
+	resultsPath := flag.String("output-tsv-path", "out.tsv", "Where to save the tsv to")
+	outJsonPath := flag.String("meta-json-path", "metadata.json", "Where to save the metadata json to")
 
 	flag.Parse()
 	fmt.Println(stage1DataBin, stage1IdmapBin, scale)
@@ -203,7 +205,37 @@ func main() {
 		}
 	}
 
-	processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords)
+	os.Remove(*resultsPath) // results are appended per query
+	startQueries := time.Now()
+	finalResults, metadata := processAnalyzedQueries(layout, stage1DB, stage2DB, luceneIdx, analyzedQueriesPath, *maxQueries, *L, *s, *kCandidates, *k, stage3, *qrels, *loadStage2Hits, *saveStage2Hits, *skipStage2, *queryWords, *resultsPath)
+	totalAnswerTime := time.Since(startQueries)
+
+	qrelsMap := loadQrels(*qrels)
+
+	if stage1DB != nil {
+		addPIRMetrics(metadata, "Stage1", stage1DB.GetMetrics())
+	}
+	if stage2DB != nil {
+		addPIRMetrics(metadata, "Stage2", stage2DB.GetMetrics())
+	}
+	if stage3 != nil {
+		addPIRMetrics(metadata, "Stage3", stage3.GetMetrics())
+	}
+	metadata["FailureProbLog2"] = 20
+
+	metadata["B"] = *B
+	metadata["R"] = *r
+	metadata["L"] = *L
+	metadata["S"] = *s
+	metadata["K"] = *k
+	metadata["KCandidates"] = *kCandidates
+	metadata["PIRBatchSize"] = batchSize
+	metadata["PIREnabled"] = enablePIR
+	metadata["TotalAnswerTime"] = totalAnswerTime.String()
+	metadata["MRR"] = calcOverallMRR(finalResults, qrelsMap)
+	metadata["Recall"] = calcOverallRecall(finalResults, qrelsMap)
+	metadata["NumQueries"] = len(finalResults)
+	writeMetadataJSON(*outJsonPath, metadata)
 }
 
 type AnalyzedQuery struct {
@@ -257,18 +289,22 @@ func processAnalyzedQueries(
 	saveStage2HitsPath string,
 	skipStage2 bool,
 	queryWords int,
-) {
+	resultsPath string,
+) (map[string][]string, map[string]interface{}) {
+
+	finalResults := make(map[string][]string)
+	summary := map[string]interface{}{}
 	// Read analyzed queries JSON file
 	data, err := os.ReadFile(queriesPath)
 	if err != nil {
 		fmt.Printf("Error reading analyzed queries file: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	var analyzedQueries []AnalyzedQuery
 	if err := json.Unmarshal(data, &analyzedQueries); err != nil {
 		fmt.Printf("Error parsing analyzed queries JSON: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	// Load qrels (optional) for evaluation and MRR calculation
@@ -482,11 +518,11 @@ func processAnalyzedQueries(
 			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, len(docIDs))
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
-				writeResultsReranked(query.ID, docIDs, scores, k)
+				writeResultsReranked(query.ID, docIDs, scores, k, resultsPath)
 			}
 		} else {
 			// Write original hitSubs results
-			writeResults(query.ID, hitSubs, k, luceneIdx)
+			writeResults(query.ID, hitSubs, k, luceneIdx, resultsPath)
 		}
 		retrievalTotal += time.Since(retrievalStarted)
 		queryCount++
@@ -498,7 +534,7 @@ func processAnalyzedQueries(
 		if physicalCuckoo && stage1DB.Levels[0] != nil {
 			actualLoadFactor = float64(stage1DB.Levels[0].Table.ItemCount) / float64(stage1DB.Levels[0].Table.SlotCount)
 		}
-		summary := map[string]interface{}{
+		summary = map[string]interface{}{
 			"queries":                 queryCount,
 			"round1_total_seconds":    round1Total.Seconds(),
 			"round2_total_seconds":    round2Total.Seconds(),
@@ -534,6 +570,7 @@ func processAnalyzedQueries(
 			}
 		}
 	}
+	return finalResults, summary
 }
 
 // loadQrels loads qrels file (tsv with columns: qid docid relevance) into a map[qid]set(docid)
@@ -566,8 +603,7 @@ func loadQrels(path string) map[string]map[string]bool {
 }
 
 // writeResultsReranked writes reranked results to a file `approx_precompute_reranked_<k>.tsv`
-func writeResultsReranked(qid string, docIDs []string, scores []float32, k int) {
-	fname := fmt.Sprintf("approx_precompute_reranked_%d.tsv", k)
+func writeResultsReranked(qid string, docIDs []string, scores []float32, k int, fname string) {
 	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening reranked results file: %v\n", err)
@@ -623,9 +659,9 @@ func getNumDocs(indexPath string) int {
 
 // Removed unused function processQueries
 
-func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex) int {
+func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.LuceneIndex, fname string) int {
 	// Open results file in append mode
-	f, err := os.OpenFile(fmt.Sprintf("approx_precompute_%d.tsv", k), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening results file: %v\n", err)
 		return 0
@@ -658,4 +694,79 @@ func writeResults(qid string, hits []bm25.HitSubBlock, k int, luceneIdx *bm25.Lu
 	}
 	writer.Flush()
 	return written
+}
+
+func calcOverallMRR(results map[string][]string, qrels map[string]map[string]bool) float64 {
+	sumMRR := 0.0
+	queryCount := 0
+
+	for qid, rankedDocs := range results {
+		relDocs, exists := qrels[qid]
+		if !exists || len(relDocs) == 0 {
+			continue
+		}
+
+		for i, docID := range rankedDocs {
+			if _, isRelevant := relDocs[docID]; isRelevant {
+				rank := i + 1
+				sumMRR += 1.0 / float64(rank)
+				break
+			}
+		}
+		queryCount++
+	}
+	if queryCount == 0 {
+		return 0.0
+	}
+	return sumMRR / float64(queryCount)
+}
+
+func calcOverallRecall(results map[string][]string, qrels map[string]map[string]bool) float64 {
+	sumRecall := 0.0
+	queryCount := 0
+
+	for qid, rankedDocs := range results {
+		relDocs, exists := qrels[qid]
+		if !exists || len(relDocs) == 0 {
+			continue
+		}
+
+		relevantRetrievedCount := 0
+		for _, docID := range rankedDocs {
+			if _, isRelevant := relDocs[docID]; isRelevant {
+				relevantRetrievedCount++
+			}
+		}
+
+		queryRecall := float64(relevantRetrievedCount) / float64(len(relDocs))
+		sumRecall += queryRecall
+		queryCount++
+	}
+	if queryCount == 0 {
+		return 0.0
+	}
+	return sumRecall / float64(queryCount)
+}
+
+func writeMetadataJSON(filename string, data map[string]interface{}) {
+	f, err := os.Create(filename)
+	if err != nil {
+		fmt.Printf("Error creating metadata file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(data); err != nil {
+		fmt.Printf("Error encoding metadata JSON: %v\n", err)
+	} else {
+		fmt.Printf("Wrote metadata to %s\n", filename)
+	}
+}
+
+func addPIRMetrics(metadata map[string]interface{}, prefix string, metrics map[string]float64) {
+	for key, value := range metrics {
+		metadata[prefix+key] = value
+	}
 }

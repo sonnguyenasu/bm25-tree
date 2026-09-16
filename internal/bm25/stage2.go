@@ -308,3 +308,10 @@ func (pre *Stage2Precomputed) QueryPIR(rowIndices []uint64) ([][]uint64, error) 
 	}
 	return pre.pir.Query(rowIndices)
 }
+
+func (pre *Stage2Precomputed) GetMetrics() map[string]float64 {
+	if pre.pir == nil {
+		return nil
+	}
+	return pre.pir.GetMetrics()
+}

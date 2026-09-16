@@ -29,6 +29,7 @@ type PianoPIRServer struct {
 	config            *PianoPIRConfig
 	rawDB             []uint64
 	privateQueryCount uint64
+	RetrievalCount    uint64
 }
 
 // an initialization function for the server
@@ -65,6 +66,7 @@ func (s *PianoPIRServer) NonePrivateQuery(idx uint64) ([]uint64, error) {
 // the private query just computes the xor sum of the elements in the idxs list
 func (s *PianoPIRServer) PrivateQuery(offsets []uint32) ([]uint64, error) {
 	s.privateQueryCount++
+	s.RetrievalCount += uint64(len(offsets))*4 + s.config.DBEntrySize*8
 	ret := make([]uint64, s.config.DBEntrySize)
 	// initialize ret to be all zeros
 	for i := uint64(0); i < s.config.DBEntrySize; i++ {

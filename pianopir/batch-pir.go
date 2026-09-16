@@ -95,13 +95,18 @@ type SimpleBatchPianoPIR struct {
 
 	// the following are stats
 
-	FinishedBatchNum        uint64
-	QueriesMadeInPartition  uint64
-	SupportBatchNum         uint64
-	localStorage            uint64  // bytes
-	preprocessingTime       float64 // seconds
-	commCostPerBatchOnline  uint64  // bytes
-	commCostPerBatchOffline uint64  // bytes
+	FinishedBatchNum         uint64
+	QueriesMadeInPartition   uint64
+	SupportBatchNum          uint64
+	localStorage             uint64  // bytes
+	preprocessingTime        float64 // seconds
+	commCostPerBatchOnline   uint64  // bytes
+	commCostPerBatchOffline  uint64  // bytes
+	roundsMade               uint64
+	preprocessed             bool
+	InitialPreprocessingTime float64
+	MaintainenceTime         float64
+	TotalPreProcs            uint
 }
 
 func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint64, rawDB []uint64, FailureProbLog2 uint64) *SimpleBatchPianoPIR {
@@ -129,11 +134,15 @@ func NewSimpleBatchPianoPIR(DBSize uint64, DBEntryByteNum uint64, BatchSize uint
 	subPIR := make([]*PianoPIR, PartitionNum)
 
 	for i := uint64(0); i < PartitionNum; i++ {
-		start := i * PartitionSize
+		start := min(i*PartitionSize, DBSize)
 		end := min((i+1)*PartitionSize, DBSize)
-		// print start and end
-		//fmt.Printf("start: %v, end: %v\n", start, end)
-		subPIR[i] = NewPianoPIR(end-start, DBEntryByteNum, rawDB[start*DBEntrySize:end*DBEntrySize], FailureProbLog2)
+		part := rawDB[start*DBEntrySize : end*DBEntrySize]
+		if end-start < PartitionSize {
+			padded := make([]uint64, PartitionSize*DBEntrySize) // copy, cached Cuckoo tables are read-only mmaps
+			copy(padded, part)
+			part = padded
+		}
+		subPIR[i] = NewPianoPIR(PartitionSize, DBEntryByteNum, part, FailureProbLog2)
 	}
 
 	return &SimpleBatchPianoPIR{
@@ -224,6 +233,14 @@ func (p *SimpleBatchPianoPIR) Preprocessing() {
 
 	endTime := time.Now()
 	prepTime := endTime.Sub(startTime).Seconds()
+	if p.TotalPreProcs >= 1 {
+		p.MaintainenceTime += prepTime
+		p.TotalPreProcs += 1
+	} else {
+		p.InitialPreprocessingTime = prepTime
+		p.TotalPreProcs = 1
+	}
+
 	log.Printf("Preprocessing time = %v\n", endTime.Sub(startTime))
 
 	p.RecordStats(prepTime)
@@ -321,7 +338,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 	partitionQueries := make([][]uint64, p.config.PartitionNum)
 	for i := 0; i < len(idx); i++ {
 		partitionIdx := idx[i] / p.config.PartitionSize
-		if partitionIdx >= p.config.PartitionNum {
+		if idx[i] >= p.config.DBSize {
 			return nil, fmt.Errorf("BatchPIR index %d is outside database of size %d", idx[i], p.config.DBSize)
 		}
 		partitionQueries[partitionIdx] = append(partitionQueries[partitionIdx], idx[i])
@@ -361,6 +378,7 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 	// Each partition owns an independent Piano client/server pair. Run
 	// partitions concurrently, but preserve request order within a partition
 	// because Piano updates state after every real query.
+	p.roundsMade++
 	partitionResponses := make([]map[uint64][]uint64, p.config.PartitionNum)
 	jobs := make(chan uint64)
 	var workers sync.WaitGroup
@@ -388,6 +406,12 @@ func (p *SimpleBatchPianoPIR) Query(idx []uint64) ([][]uint64, error) {
 						continue
 					}
 					response, err := p.subPIR[partition].Query(row-partition*p.config.PartitionSize, true)
+					if err != nil {
+						// hint miss / chunk saturation: refresh only this partition and retry once
+						fmt.Printf("partition %d query failed (%v); redoing its preprocessing\n", partition, err)
+						p.subPIR[partition].Preprocessing()
+						response, err = p.subPIR[partition].Query(row-partition*p.config.PartitionSize, true)
+					}
 					if err != nil {
 						errOnce.Do(func() {
 							firstErr = fmt.Errorf("partition %d query %d failed: %w", partition, queryIndex, err)
@@ -463,4 +487,29 @@ func (p *SimpleBatchPianoPIR) PreprocessingTime() float64 {
 
 func (p *SimpleBatchPianoPIR) Config() *SimpleBatchPianoPIRConfig {
 	return p.config
+}
+
+// GetMetrics returns this DB's metrics under bins-style key names.
+// Values are float64 so stages can sum them key-by-key.
+func (p *SimpleBatchPianoPIR) GetMetrics() map[string]float64 {
+	totalByte := uint64(0)
+	for _, sub := range p.subPIR {
+		totalByte += sub.server.RetrievalCount
+	}
+	return map[string]float64{
+		"TotalByteSent":      float64(totalByte),
+		"TotalWANTime":       netTime(totalByte, p.roundsMade, 400, 0.05),
+		"TotalLANTime":       netTime(totalByte, p.roundsMade, 1000, 0.005),
+		"Rounds":             float64(p.roundsMade),
+		"PreprocessingTime":  p.InitialPreprocessingTime,
+		"MaintainenceTime":   p.MaintainenceTime,
+		"TotalPreProc":       float64(p.TotalPreProcs),
+		"ClientStorageMB":    p.LocalStorageSize() / 1024 / 1024,
+		"DBSizeInBytesMB":    float64(p.config.DBSize) * float64(p.config.DBEntryByteNum) / 1024 / 1024,
+		"CommCostPerBatchKB": float64(p.CommCostPerBatchOnline()) / 1024,
+	}
+}
+
+func netTime(bytes, rounds uint64, mbps, rttSec float64) float64 {
+	return float64(bytes)*8/(mbps*1e6) + float64(rounds)*rttSec
 }

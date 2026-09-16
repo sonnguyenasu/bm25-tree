@@ -432,3 +432,17 @@ func (db *Stage1PIRDB) readRowDirectByte(rowIndex int) []byte {
 	}
 	return make([]byte, db.R)
 }
+
+// GetMetrics sums every level database into one set of Stage1 metrics.
+func (db *Stage1PIRDB) GetMetrics() map[string]float64 {
+	total := make(map[string]float64)
+	for _, levelDB := range db.Levels {
+		if levelDB == nil || levelDB.pir == nil {
+			continue
+		}
+		for key, value := range levelDB.pir.GetMetrics() {
+			total[key] += value
+		}
+	}
+	return total
+}

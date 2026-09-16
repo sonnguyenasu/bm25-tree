@@ -34,6 +34,8 @@ type Stage3Reranker struct {
 	pir       *pianopir.SimpleBatchPianoPIR
 	pirUsable bool // true if PIR is initialized and can be used
 
+	QueryBlocks int // public number of block lookups per query (0 = no padding)
+
 	// Blocking & Permutation Support
 	BlockPermutation []int // Maps LogicalBlockID -> PhysicalBlockID
 
@@ -353,8 +355,8 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 		if StrictPIR {
 			entryBytes := sr.EmbedDim * sr.BytesPerElem * blockSize
 			start := int(bid) * entryBytes
-			end := start + entryBytes
-			if end > len(sr.docEmbedMmap) || len(data) < entryBytes {
+			end := min(start+entryBytes, len(sr.docEmbedMmap))
+			if start >= end || len(data) < end-start {
 				panic(fmt.Sprintf("Stage3 PIR block %d has invalid response bounds", bid))
 			}
 			for offset := 0; offset < entryBytes; offset++ {
@@ -678,4 +680,11 @@ func (sr *Stage3Reranker) Close() error {
 	}
 
 	return nil
+}
+
+func (pre *Stage3Reranker) GetMetrics() map[string]float64 {
+	if pre.pir == nil {
+		return nil
+	}
+	return pre.pir.GetMetrics()
 }
