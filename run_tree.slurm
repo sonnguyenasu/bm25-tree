@@ -1,10 +1,10 @@
 #!/bin/bash -l
 #SBATCH --job-name=Tree_Ablation_PIR
-#SBATCH --partition=contrib
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=80G
+#SBATCH --mem=70G
 #SBATCH --time=0-05:30:00
 #SBATCH --constraint=amd
 #SBATCH --array=0-9
