@@ -67,6 +67,7 @@ if [ "$dataset" == "msmarco" ]; then
     DB_SIZE=8841823
     DATA_ROOT="${ROOT_DIR}/data/msmarco"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
+    LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
     BLOCK_PERMS="data/block_permutations_$B_val.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
@@ -153,9 +154,8 @@ echo "Running tree search..."
 
 elapsed_time=$SECONDS
 echo "Time elapsed: $elapsed_time seconds"
+echo "Execution finished."
 
 # Copy SLURM logs into the output directory for reference
 cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "execution.log" || true
 cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "error.log" || true
-
-echo "Execution finished."
