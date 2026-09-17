@@ -359,7 +359,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 			if start >= end || len(data) < end-start {
 				panic(fmt.Sprintf("Stage3 PIR block %d has invalid response bounds", bid))
 			}
-			for offset := 0; offset < entryBytes; offset++ {
+			for offset := 0; offset < end-start; offset++ {
 				if data[offset] != sr.docEmbedMmap[start+offset] {
 					panic(fmt.Sprintf("Stage3 PIR block %d byte %d mismatch: got %#x, want %#x", bid, offset, data[offset], sr.docEmbedMmap[start+offset]))
 				}
