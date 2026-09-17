@@ -44,8 +44,8 @@ func main() {
 	embedDim := flag.Int("embed-dim", 192, "Embedding dimensionality for Stage3 reranker")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	queryWords := flag.Int("query-words", 8, "Fixed number of words in query (pad with dummy if needed)")
-	strictPIR := flag.Bool("strict-pir", false, "Verify PIR responses against the local plaintext database (diagnostic)")
-	pirConstantWork := flag.Bool("pir-constant-work", false, "Use public fixed BatchPIR padding and dummy work for cache hits")
+	strictPIR := flag.Bool("strict-pir", true, "Verify PIR responses against the local plaintext database (diagnostic)")
+	pirConstantWork := flag.Bool("pir-constant-work", true, "Use public fixed BatchPIR padding and dummy work for cache hits")
 	pirThreads := flag.Int("pir-threads", 15, "Maximum number of BatchPIR partitions processed concurrently")
 	pirCoverQueries := flag.Bool("pir-cover-queries", false, "Deprecated: physical Cuckoo mode always issues exactly two probes")
 	pirShuffleRows := flag.Bool("pir-shuffle-rows", false, "Deprecated: physical Cuckoo hashing distributes rows")
@@ -520,10 +520,24 @@ func processAnalyzedQueries(
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
 				writeResultsReranked(query.ID, docIDs, scores, k, resultsPath)
+				finalResults[query.ID] = docIDs[:min(k, len(docIDs))]
 			}
 		} else {
 			// Write original hitSubs results
 			writeResults(query.ID, hitSubs, k, luceneIdx, resultsPath)
+			var ranked []string
+			for _, hit := range hitSubs {
+				for docID := hit.Start; docID < hit.End; docID++ {
+					if luceneIdx != nil {
+						if extID, err := luceneIdx.ConvertInternalToExternalID(docID); err == nil && extID != 0 {
+							ranked = append(ranked, fmt.Sprintf("%d", extID))
+						}
+					} else {
+						ranked = append(ranked, fmt.Sprintf("%d", docID))
+					}
+				}
+			}
+			finalResults[query.ID] = ranked
 		}
 		retrievalTotal += time.Since(retrievalStarted)
 		queryCount++
@@ -733,7 +747,12 @@ func calcOverallRecall(results map[string][]string, qrels map[string]map[string]
 		}
 
 		relevantRetrievedCount := 0
+		seen := make(map[string]bool, len(rankedDocs))
 		for _, docID := range rankedDocs {
+			if seen[docID] {
+				continue
+			}
+			seen[docID] = true
 			if _, isRelevant := relDocs[docID]; isRelevant {
 				relevantRetrievedCount++
 			}
