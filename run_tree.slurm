@@ -119,7 +119,6 @@ echo "Running tree search..."
     --L "$L_val" \
     --k_candidates "$k_cand_val" \
     --query-words "$q_words_val" \
-    --pir-constant-work \
     --B "$B_val" \
     --r "$r_val" \
     --s "$s_val" \
