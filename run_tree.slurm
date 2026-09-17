@@ -65,8 +65,8 @@ echo "========================================"
 # Pre-define dataset-specific variables using absolute paths
 if [ "$dataset" == "msmarco" ]; then
     DB_SIZE=8841823
-    LAYOUT_PATH="data/layout_with_stats_${B_val}_${r_val}.json"
-    python gen_layout.py "$DB_SIZE" "$B_val" "$r_val"
+    DATA_ROOT="${ROOT_DIR}/data/msmarco"
+    ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
     BLOCK_PERMS="data/block_permutations_$B_val.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
