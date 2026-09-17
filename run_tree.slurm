@@ -68,7 +68,7 @@ if [ "$dataset" == "msmarco" ]; then
     LAYOUT_PATH="data/layout_with_stats_${B_val}_${r_val}.json"
     LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
     python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
-    BLOCK_PERMS="data/block_permutations.json"
+    BLOCK_PERMS="data/block_permutations_$B_val.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
     QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
