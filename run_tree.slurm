@@ -89,7 +89,7 @@ elif [ "$dataset" == "scifact" ]; then
     CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}"
     mkdir -p "$CACHE_DIR"
 
-    LAYOUT_PATH="${ARTIFACT_DIR}/layout_scifact.json"
+    LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
     INDEX="${ROOT_DIR}/indexes/scifact"
     QUERIES="${DATA_ROOT}/queries.qrels.tsv"
     QRELS="${DATA_ROOT}/qrels.trec"
