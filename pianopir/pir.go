@@ -369,9 +369,21 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 		ret[i] = 0
 	}
 
+	//// if it's a dummy query, then just generate c.config.SetSize random numbers between 0...c.config.ChunkSize
+	//if !realQuery {
+	//	return ret, c.constantWorkDummyQuery(idx, server)
+	//}
+
 	// if it's a dummy query, then just generate c.config.SetSize random numbers between 0...c.config.ChunkSize
 	if !realQuery {
-		return ret, c.constantWorkDummyQuery(idx, server)
+		offsets := make([]uint32, c.config.SetSize)
+		for i := uint64(0); i < c.config.SetSize; i++ {
+			offsets[i] = uint32(rand.Uint64() & (c.config.ChunkSize - 1))
+		}
+		// still simulate/count the time and bits for the query
+		_, err := server.PrivateQuery(offsets)
+
+		return ret, err
 	}
 
 	if idx >= c.config.DBSize {
@@ -381,13 +393,17 @@ func (c *PianoPIRClient) Query(idx uint64, server *PianoPIRServer, realQuery boo
 		return ret, fmt.Errorf("idx %v is out of range", idx)
 	}
 
-	// if the idx is in the local cache, then return the result from the local cache
+	//// if the idx is in the local cache, then return the result from the local cache
+	//if v, ok := c.localCache[idx]; ok {
+	//	if c.constantWork {
+	//		if err := c.constantWorkDummyQuery(idx, server); err != nil {
+	//			return ret, err
+	//		}
+	//	}
+	//	return v, nil
+	//}
+
 	if v, ok := c.localCache[idx]; ok {
-		if c.constantWork {
-			if err := c.constantWorkDummyQuery(idx, server); err != nil {
-				return ret, err
-			}
-		}
 		return v, nil
 	}
 
