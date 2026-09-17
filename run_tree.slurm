@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=120G
+#SBATCH --mem=80G
 #SBATCH --time=0-05:30:00
 #SBATCH --constraint=amd
 #SBATCH --array=0-9
