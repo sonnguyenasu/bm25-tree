@@ -53,6 +53,7 @@ func main() {
 	cuckooMaxKicks := flag.Int("cuckoo-max-kicks", 1000, "Maximum displacement steps per Cuckoo insertion")
 	cuckooBuildAttempts := flag.Int("cuckoo-build-attempts", 8, "Maximum full-table Cuckoo rehash attempts")
 	cuckooCacheDir := flag.String("cuckoo-cache-dir", "", "Optional directory for persistent physical Cuckoo tables")
+	blockPerm := flag.String("block-permutation", "", "Path to block permutation JSON (must match this corpus's block count)")
 
 	// Stage2 hit load/save flags for Stage3-only runs
 	loadStage2Hits := flag.String("load-stage2-hits", "", "Path to JSON file containing saved Stage2 hitSubs (map qid->[]HitSubBlock)")
@@ -196,7 +197,7 @@ func main() {
 	// Initialize Stage3 reranker if embeddings provided
 	var stage3 *bm25.Stage3Reranker = nil
 	if *docEmbed != "" && *docIDMap != "" && *queryEmbed != "" {
-		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, "data/block_permutations.json", *embedDim, enablePIR, uint64(32))
+		sr, err := bm25.NewStage3Reranker(*docEmbed, *docIDMap, *queryEmbed, *blockPerm, *embedDim, enablePIR, uint64(32))
 		if err != nil {
 			fmt.Printf("Warning: failed to initialize Stage3 reranker: %v\n", err)
 		} else {

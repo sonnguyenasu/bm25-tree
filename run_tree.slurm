@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=120G
 #SBATCH --time=0-05:30:00
-
+#SBATCH --constraint=amd
 #SBATCH --array=0-9
 #SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
@@ -64,7 +64,11 @@ echo "========================================"
 
 # Pre-define dataset-specific variables using absolute paths
 if [ "$dataset" == "msmarco" ]; then
-    LAYOUT_PATH="${ROOT_DIR}/data/layout_with_stats_32_128.json"
+    DB_SIZE=8841823
+    LAYOUT_PATH="data/layout_with_stats_${B_val}_${r_val}.json"
+    LAYOUT_PATH="${LAYOUT_PATH%.json}_${SLURM_ARRAY_TASK_ID}.json"
+    # python gen_layout.py "$DB_SIZE" "$B_val" "$r_val" "$LAYOUT_PATH"
+    BLOCK_PERMS="data/block_permutations.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
     QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
@@ -81,6 +85,7 @@ if [ "$dataset" == "msmarco" ]; then
 elif [ "$dataset" == "scifact" ]; then
     DATA_ROOT="${ROOT_DIR}/data/scifact"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
+    BLOCK_PERMS="${ROOT_DIR}/data/scifact_block_permutations.json"
 
     CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}"
     mkdir -p "$CACHE_DIR"
@@ -142,6 +147,7 @@ echo "Running tree search..."
     --query-embed "$QUERY_EMBED" \
     --embed-dim "$embed_val" \
     --output-tsv-path "$OUT_DIR/go_results.tsv" \
+    --block-permutation "$BLOCK_PERMS" \
     --meta-json-path "$OUT_DIR/metadata.json" \
     --pir-threads 16 \
     $CACHE_ARGS > "$LOG_FILE" 2>&1
