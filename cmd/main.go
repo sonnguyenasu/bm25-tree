@@ -551,6 +551,7 @@ func processAnalyzedQueries(
 		}
 		summary = map[string]interface{}{
 			"queries":                 queryCount,
+			"NumQueries":              queryCount,
 			"round1_total_seconds":    round1Total.Seconds(),
 			"round2_total_seconds":    round2Total.Seconds(),
 			"round3_total_seconds":    round3Total.Seconds(),
