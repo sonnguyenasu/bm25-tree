@@ -29,6 +29,7 @@ type Stage3Reranker struct {
 	DocIDMap []string
 	// Reverse map: external doc ID -> embedding array index
 	DocIDReverseMap map[string]int
+	PermBlockDocs   int
 
 	// PIR support: optional PIR-backed embedding access
 	pir       *pianopir.SimpleBatchPianoPIR
@@ -178,6 +179,10 @@ func NewStage3Reranker(
 			return nil, fmt.Errorf("error parsing permutation map: %v", err)
 		}
 		fmt.Printf("Stage3 Reranker: loaded block permutation map with %d entries\n", len(sr.BlockPermutation))
+		sr.PermBlockDocs = (numDocs + len(sr.BlockPermutation) - 1) / len(sr.BlockPermutation)
+		if sr.PermBlockDocs%8 != 0 {
+			return nil, fmt.Errorf("permutation block size %d is not a multiple of the Stage3 PIR block size 8", sr.PermBlockDocs)
+		}
 	}
 
 	// Initialize PIR for document embeddings if enabled
@@ -226,6 +231,13 @@ func NewStage3Reranker(
 	}
 
 	return sr, nil
+}
+
+func (sr *Stage3Reranker) physicalDocIndex(docIdx int) int {
+	if len(sr.BlockPermutation) == 0 {
+		return docIdx
+	}
+	return sr.BlockPermutation[docIdx/sr.PermBlockDocs]*sr.PermBlockDocs + docIdx%sr.PermBlockDocs
 }
 
 // parseDocIDs parses line-separated doc IDs
@@ -316,17 +328,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 
 	// 1. Identify which PHYSICAL blocks we need
 	for _, idx := range docIndices {
-		logicalBlockID := idx / blockSize
-
-		// Map Logical -> Physical (Shuffled)
-		physicalBlockID := logicalBlockID
-		if len(sr.BlockPermutation) > 0 {
-			if logicalBlockID < len(sr.BlockPermutation) {
-				physicalBlockID = sr.BlockPermutation[logicalBlockID]
-			}
-		}
-
-		uniqueBlocks[uint64(physicalBlockID)] = true
+		uniqueBlocks[uint64(sr.physicalDocIndex(idx)/blockSize)] = true
 	}
 
 	// 2. Prepare block query
@@ -370,14 +372,9 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 
 	// 5. Extract specific embeddings from retrieved blocks
 	for _, docIdx := range docIndices {
-		logicalBlockID := docIdx / blockSize
-		offsetInBlock := (docIdx % blockSize)
-
-		// Re-calculate Physical ID to look up in blockData
-		physicalBlockID := logicalBlockID
-		if len(sr.BlockPermutation) > 0 && logicalBlockID < len(sr.BlockPermutation) {
-			physicalBlockID = sr.BlockPermutation[logicalBlockID]
-		}
+		physicalDoc := sr.physicalDocIndex(docIdx)
+		offsetInBlock := physicalDoc % blockSize
+		physicalBlockID := physicalDoc / blockSize
 
 		if rawBlock, ok := blockData[uint64(physicalBlockID)]; ok {
 			// Calculate byte offsets for this specific embedding within the block
@@ -409,6 +406,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 // getDocEmbeddingDirect reads embedding directly without PIR
 func (sr *Stage3Reranker) getDocEmbeddingDirect(docIdx int) []float32 {
 	emb := make([]float32, sr.EmbedDim)
+	docIdx = sr.physicalDocIndex(docIdx)
 	for j := 0; j < sr.EmbedDim; j++ {
 		offset := (docIdx*sr.EmbedDim + j) * sr.BytesPerElem
 		if offset+sr.BytesPerElem <= len(sr.docEmbedMmap) {
