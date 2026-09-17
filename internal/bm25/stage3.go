@@ -375,7 +375,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 
 		// Re-calculate Physical ID to look up in blockData
 		physicalBlockID := logicalBlockID
-		if len(sr.BlockPermutation) > 0 {
+		if len(sr.BlockPermutation) > 0 && logicalBlockID < len(sr.BlockPermutation) {
 			physicalBlockID = sr.BlockPermutation[logicalBlockID]
 		}
 
