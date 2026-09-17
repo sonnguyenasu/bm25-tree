@@ -68,7 +68,7 @@ if [ "$dataset" == "msmarco" ]; then
     DATA_ROOT="${ROOT_DIR}/data/msmarco"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
     LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
-    BLOCK_PERMS="data/block_permutations_$B_val.json"
+    BLOCK_PERMS="data/block_permutations.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
     QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
