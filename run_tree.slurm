@@ -72,11 +72,11 @@ if [ "$dataset" == "msmarco" ]; then
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
     QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
-    VOCAB="${ROOT_DIR}/data/stage1_vocab.json"
-    STAGE1_DATA="${ROOT_DIR}/data/stage1_data.bin"
-    STAGE1_IDMAP="${ROOT_DIR}/data/stage1/stage1_idmap.bin"
-    STAGE2_DATA="${ROOT_DIR}/data/stage2/data.bin"
-    STAGE2_IDMAP="${ROOT_DIR}/data/stage2/idmap.bin"
+    VOCAB="${ARTIFACT_DIR}/stage1_vocab.json"
+    STAGE1_DATA="${ARTIFACT_DIR}/stage1_data.bin"
+    STAGE1_IDMAP="${ARTIFACT_DIR}/stage1_idmap.bin"
+    STAGE2_DATA="${ARTIFACT_DIR}/stage2/data.bin"
+    STAGE2_IDMAP="${ARTIFACT_DIR}/stage2/idmap.bin"
     DOC_EMBED="${ROOT_DIR}/data/stage3_doc_aligned_shuffle.npy"
     DOC_ID_MAP="${ROOT_DIR}/data/stage3_doc_aligned.npy.ids"
     QUERY_EMBED="${ROOT_DIR}/data/stage3_query.npy"
@@ -157,5 +157,5 @@ echo "Time elapsed: $elapsed_time seconds"
 echo "Execution finished."
 
 # Copy SLURM logs into the output directory for reference
-cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "execution.log" || true
-cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "error.log" || true
+cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/execution.log" || true
+cp "${ROOT_DIR}/logs/Tree_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "${OUT_DIR}/error.log" || true
