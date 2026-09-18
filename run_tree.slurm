@@ -66,7 +66,7 @@ if [ "$dataset" == "msmarco" ]; then
     DATA_ROOT="${ROOT_DIR}/data/msmarco"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
     LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
-    BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
+    BLOCK_PERMS="data/block_permutations.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
     QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
     QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
@@ -83,7 +83,7 @@ if [ "$dataset" == "msmarco" ]; then
 elif [ "$dataset" == "scifact" ]; then
     DATA_ROOT="${ROOT_DIR}/data/scifact"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
-    BLOCK_PERMS="${ROOT_DIR}/data/block_permutations.json"
+    BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
 
     CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}"
     mkdir -p "$CACHE_DIR"
