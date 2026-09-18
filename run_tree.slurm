@@ -4,11 +4,11 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=120G
-#SBATCH --time=0-15:30:00
+#SBATCH --mem=100G
+#SBATCH --time=0-4:30:00
 #SBATCH --constraint=amd
 #SBATCH --array=0-9
-#SBATCH --output=logs/Tree_%A_%a.out
+# SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
 
 set -euo pipefail
@@ -20,19 +20,17 @@ module load hosts/hopper
 module load gnu9/9.3.0
 export PATH=$PATH:/usr/local/go/bin
 
-# 0-4: msmarco configs
-# 5-9: scifact configs (C1-C5)
+
 DATA_ARR=("msmarco" "msmarco" "msmarco" "msmarco" "msmarco" "scifact" "scifact" "scifact" "scifact" "scifact")
 
-# Hyperparameters mapped to the 10 specific runs
 L_ARR=(100 50 200 400 400 5 5 10 20 40)
 KCAND_ARR=(128 64 128 256 256 5 5 10 5 10)
 QWORDS_ARR=(6 4 6 8 8 12 8 12 16 16)
 B_ARR=(64 64 64 16 64 8 32 8 8 16)
-R_ARR=(128 128 128 128 128 128 128 128 128 128)
+R_ARR=(128 128 128 128 128 128 128 128 128 128  128 128 128)
 S_ARR=(8 16 16 8 4 2 2 2 2 2)
 MAX_Q_ARR=(6980 6980 6980 6980 6980 300 300 300 300 300)
-EMBED_ARR=(192 192 192 192 192 384 384 384 384 384)
+EMBED_ARR=(192 192 192 192 192 192 192 192 192 192)
 
 task_id=$SLURM_ARRAY_TASK_ID
 dataset=${DATA_ARR[$task_id]}
@@ -99,9 +97,13 @@ elif [ "$dataset" == "scifact" ]; then
     STAGE1_IDMAP="${ARTIFACT_DIR}/stage1_idmap.bin"
     STAGE2_DATA="${ARTIFACT_DIR}/stage2/data.bin"
     STAGE2_IDMAP="${ARTIFACT_DIR}/stage2/idmap.bin"
-    DOC_EMBED="${DATA_ROOT}/clustered/doc_embeddings.npy"
-    DOC_ID_MAP="${DATA_ROOT}/clustered/doc_embeddings.npy.ids"
-    QUERY_EMBED="${DATA_ROOT}/query_embeddings.npy"
+#    DOC_EMBED="${DATA_ROOT}/clustered/doc_embeddings.npy"
+#    DOC_ID_MAP="${DATA_ROOT}/clustered/doc_embeddings.npy.ids"
+#    QUERY_EMBED="${DATA_ROOT}/query_embeddings.npy"
+
+    DOC_EMBED="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy"
+    DOC_ID_MAP="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy.ids"
+    QUERY_EMBED="$/projects/evgenios/dblackle/datasets/scifact_query_embed_f32.npy"
 
     CACHE_ARGS="--cuckoo-cache-dir ${CACHE_DIR}"
 
