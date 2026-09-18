@@ -192,7 +192,7 @@ func NewStage3Reranker(
 
 		// Calculate DB dimensions in terms of BLOCKS
 		dbSize := uint64((numDocs + blockSize - 1) / blockSize)
-		entrySizeBytes := uint64(npyEmbedDim * bytesPerElem * blockSize)
+		entrySizeBytes := uint64(sr.EmbedDim * bytesPerElem * blockSize)
 
 		// Convert raw bytes to uint64 array for PIR
 		embedUint64 := convertBytesToUint64(sr.docEmbedMmap)
@@ -350,6 +350,10 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 		return result
 	}
 
+	if len(responses) != len(queryBlocks) {
+		panic(fmt.Sprintf("Stage3 PIR returned %d blocks; want %d", len(responses), len(queryBlocks)))
+	}
+
 	// 4. Unpack responses into map: PhysicalBlockID -> Data
 	blockData := make(map[uint64][]byte)
 	for i, bid := range queryBlocks {
@@ -370,6 +374,7 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 		blockData[bid] = data
 	}
 
+	pirMisses := 0
 	// 5. Extract specific embeddings from retrieved blocks
 	for _, docIdx := range docIndices {
 		physicalDoc := sr.physicalDocIndex(docIdx)
@@ -395,7 +400,17 @@ func (sr *Stage3Reranker) GetDocEmbeddingBatch(docIndices []int) map[int][]float
 					}
 				}
 				result[docIdx] = emb
+			} else {
+				pirMisses++
 			}
+		} else {
+			pirMisses++
+		}
+		if pirMisses > 0 {
+			if StrictPIR {
+				panic(fmt.Sprintf("Stage3 PIR: %d/%d candidate embeddings missing from responses", pirMisses, len(docIndices)))
+			}
+			fmt.Printf("Stage3 PIR: %d/%d candidate embeddings missing from responses\n", pirMisses, len(docIndices))
 		}
 	}
 	// --- BLOCKING & SHUFFLING LOGIC END ---
