@@ -83,7 +83,7 @@ if [ "$dataset" == "msmarco" ]; then
 elif [ "$dataset" == "scifact" ]; then
     DATA_ROOT="${ROOT_DIR}/data/scifact"
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
-    BLOCK_PERMS="${ROOT_DIR}/data/scifact_block_permutations.json"
+    BLOCK_PERMS="${ROOT_DIR}/data/block_permutations.json"
 
     CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}"
     mkdir -p "$CACHE_DIR"
@@ -97,13 +97,10 @@ elif [ "$dataset" == "scifact" ]; then
     STAGE1_IDMAP="${ARTIFACT_DIR}/stage1_idmap.bin"
     STAGE2_DATA="${ARTIFACT_DIR}/stage2/data.bin"
     STAGE2_IDMAP="${ARTIFACT_DIR}/stage2/idmap.bin"
-#    DOC_EMBED="${DATA_ROOT}/clustered/doc_embeddings.npy"
-#    DOC_ID_MAP="${DATA_ROOT}/clustered/doc_embeddings.npy.ids"
-#    QUERY_EMBED="${DATA_ROOT}/query_embeddings.npy"
+    DOC_EMBED="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy"
+    DOC_ID_MAP="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy.ids"
+    QUERY_EMBED="${DATA_ROOT}/stage3_e5_pca192_query_embeddings.npy"
 
-    DOC_EMBED="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy"
-    DOC_ID_MAP="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy.ids"
-    QUERY_EMBED="/projects/evgenios/dblackle/datasets/scifact_query_embed_f32.npy"
 
     CACHE_ARGS="--cuckoo-cache-dir ${CACHE_DIR}"
 
