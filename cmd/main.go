@@ -45,7 +45,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	queryWords := flag.Int("query-words", 8, "Fixed number of words in query (pad with dummy if needed)")
 	strictPIR := flag.Bool("strict-pir", true, "Verify PIR responses against the local plaintext database (diagnostic)")
-	pirConstantWork := flag.Bool("pir-constant-work", true, "Use public fixed BatchPIR padding and dummy work for cache hits")
+	pirConstantWork := flag.Bool("pir-constant-work", false, "Use public fixed BatchPIR padding and dummy work for cache hits")
 	pirThreads := flag.Int("pir-threads", 15, "Maximum number of BatchPIR partitions processed concurrently")
 	pirCoverQueries := flag.Bool("pir-cover-queries", false, "Deprecated: physical Cuckoo mode always issues exactly two probes")
 	pirShuffleRows := flag.Bool("pir-shuffle-rows", false, "Deprecated: physical Cuckoo hashing distributes rows")
