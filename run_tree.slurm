@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=100G
-#SBATCH --time=0-4:30:00
+#SBATCH --time=0-9:30:00
 #SBATCH --constraint=amd
 #SBATCH --array=0-9
 # SBATCH --output=logs/Tree_%A_%a.out
@@ -103,7 +103,7 @@ elif [ "$dataset" == "scifact" ]; then
 
     DOC_EMBED="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy"
     DOC_ID_MAP="/projects/evgenios/dblackle/datasets/scifact/scifact_corpus_embed_f32.npy.ids"
-    QUERY_EMBED="$/projects/evgenios/dblackle/datasets/scifact_query_embed_f32.npy"
+    QUERY_EMBED="/projects/evgenios/dblackle/datasets/scifact_query_embed_f32.npy"
 
     CACHE_ARGS="--cuckoo-cache-dir ${CACHE_DIR}"
 
