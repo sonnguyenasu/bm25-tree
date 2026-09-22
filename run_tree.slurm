@@ -45,7 +45,7 @@ embed_val=${EMBED_ARR[$task_id]}
 k_val=10
 
 BINARY="${ROOT_DIR}/bm25-search"
-OUT_DIR="/scratch/dblackle/results/tree_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_k${k_val}"
+OUT_DIR="/scratch/dblackle/results/tree_new_test_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_k${k_val}"
 mkdir -p "$OUT_DIR"
 
 echo "========================================"
