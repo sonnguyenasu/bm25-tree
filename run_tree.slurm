@@ -68,8 +68,10 @@ if [ "$dataset" == "msmarco" ]; then
     LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
     BLOCK_PERMS="data/block_permutations.json"
     INDEX="${ROOT_DIR}/data/msmarco_reordered"
-    QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
-    QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
+    # QUERIES="${ROOT_DIR}/data/queries.dev.small.tsv"
+    QUERIES="/scratch/dblackle/tree_stuff/new_tests/msmarco/queries.tsv"
+    # QRELS="${ROOT_DIR}/data/qrels.dev.small.tsv"
+    QRELS="/scratch/dblackle/tree_stuff/new_tests/msmarco/qrels.tsv"
     VOCAB="${ARTIFACT_DIR}/stage1_vocab.json"
     STAGE1_DATA="${ARTIFACT_DIR}/stage1_data.bin"
     STAGE1_IDMAP="${ARTIFACT_DIR}/stage1_idmap.bin"
@@ -77,7 +79,8 @@ if [ "$dataset" == "msmarco" ]; then
     STAGE2_IDMAP="${ARTIFACT_DIR}/stage2/idmap.bin"
     DOC_EMBED="${ROOT_DIR}/data/stage3_doc_aligned_shuffle.npy"
     DOC_ID_MAP="${ROOT_DIR}/data/stage3_doc_aligned.npy.ids"
-    QUERY_EMBED="${ROOT_DIR}/data/stage3_query.npy"
+    # QUERY_EMBED="${ROOT_DIR}/data/stage3_query.npy"
+    QUERY_EMBED="/scratch/dblackle/tree_stuff/new_tests/msmarco/data/query_embeddings.npy"
     CACHE_ARGS=""
 
 elif [ "$dataset" == "scifact" ]; then
@@ -90,8 +93,10 @@ elif [ "$dataset" == "scifact" ]; then
 
     LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
     INDEX="${ROOT_DIR}/indexes/scifact"
-    QUERIES="${DATA_ROOT}/queries.qrels.tsv"
-    QRELS="${DATA_ROOT}/qrels.trec"
+    # QUERIES="${DATA_ROOT}/queries.qrels.tsv"
+    QUERIES="/scratch/dblackle/tree_stuff/new_tests/scifact/queries.qrels.tsv"
+    # QRELS="${DATA_ROOT}/qrels.trec"
+    QRELS="/scratch/dblackle/tree_stuff/new_tests/scifact/qrels.tsv"
     VOCAB="${ARTIFACT_DIR}/stage1_vocab.json"
     STAGE1_DATA="${ARTIFACT_DIR}/stage1_data.bin"
     STAGE1_IDMAP="${ARTIFACT_DIR}/stage1_idmap.bin"
@@ -99,7 +104,8 @@ elif [ "$dataset" == "scifact" ]; then
     STAGE2_IDMAP="${ARTIFACT_DIR}/stage2/idmap.bin"
     DOC_EMBED="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy"
     DOC_ID_MAP="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy.ids"
-    QUERY_EMBED="${DATA_ROOT}/stage3_e5_pca192_query_embeddings.npy"
+    # QUERY_EMBED="${DATA_ROOT}/stage3_e5_pca192_query_embeddings.npy"
+    QUERY_EMBED="/scratch/dblackle/tree_stuff/new_tests/scifact/data/query_embeddings.npy"
 
 
     CACHE_ARGS="--cuckoo-cache-dir ${CACHE_DIR}"
