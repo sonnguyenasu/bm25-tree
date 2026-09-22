@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=100G
+#SBATCH --mem=120G
 #SBATCH --time=0-13:30:00
 #SBATCH --constraint=amd
 #SBATCH --array=0-9
@@ -105,7 +105,7 @@ elif [ "$dataset" == "scifact" ]; then
     DOC_EMBED="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy"
     DOC_ID_MAP="${DATA_ROOT}/clustered/stage3_e5_pca192_doc_embeddings.npy.ids"
     # QUERY_EMBED="${DATA_ROOT}/stage3_e5_pca192_query_embeddings.npy"
-    QUERY_EMBED="/scratch/dblackle/tree_stuff/new_tests/scifact/data/query_embeddings.npy"
+    QUERY_EMBED="/scratch/dblackle/tree_stuff/new_tests/scifact/query_embeddings.npy"
 
 
     CACHE_ARGS="--cuckoo-cache-dir ${CACHE_DIR}"
