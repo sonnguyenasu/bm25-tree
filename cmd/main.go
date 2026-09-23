@@ -323,6 +323,9 @@ func processAnalyzedQueries(
 	var round2Total time.Duration
 	var round3Total time.Duration
 	var retrievalTotal time.Duration
+	var mrrAt10Total float64
+	var recallAt10Total float64
+	evaluatedQueries := 0
 	for _, query := range analyzedQueries {
 		if maxQueries > 0 && queryCount >= maxQueries {
 			break
@@ -478,8 +481,22 @@ func processAnalyzedQueries(
 			round3Total += elapsed
 			fmt.Printf("Round 3, took %s\n", elapsed)
 
+			recallAt10 := float64(0)
+			if len(goldSetForStage3) > 0 {
+				foundRelevant := make(map[string]bool)
+				for rank := 0; rank < 10 && rank < len(docIDs); rank++ {
+					if goldSetForStage3[docIDs[rank]] {
+						foundRelevant[docIDs[rank]] = true
+					}
+				}
+				recallAt10 = float64(len(foundRelevant)) / float64(len(goldSetForStage3))
+				mrrAt10Total += float64(mrrFromStage3)
+				recallAt10Total += recallAt10
+				evaluatedQueries++
+			}
+
 			// Stage3 reranker already returns external doc IDs via DocIDMap, so no conversion needed
-			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, len(docIDs))
+			fmt.Printf("Stage3 Rerank: Query %s MRR@10=%.4f Recall@10=%.4f, candidates=%d\n", query.ID, mrrFromStage3, recallAt10, len(docIDs))
 			// write top-k reranked results (Stage3 already returns external IDs)
 			if len(docIDs) > 0 {
 				writeResultsReranked(query.ID, docIDs, scores, k)
@@ -498,8 +515,18 @@ func processAnalyzedQueries(
 		if physicalCuckoo && stage1DB.Levels[0] != nil {
 			actualLoadFactor = float64(stage1DB.Levels[0].Table.ItemCount) / float64(stage1DB.Levels[0].Table.SlotCount)
 		}
+		var meanMRRAt10 interface{}
+		var meanRecallAt10 interface{}
+		if evaluatedQueries > 0 {
+			meanMRRAt10 = mrrAt10Total / float64(evaluatedQueries)
+			meanRecallAt10 = recallAt10Total / float64(evaluatedQueries)
+			fmt.Printf("EVALUATION_SUMMARY MRR@10=%.6f Recall@10=%.6f evaluated_queries=%d\n", meanMRRAt10, meanRecallAt10, evaluatedQueries)
+		}
 		summary := map[string]interface{}{
 			"queries":                 queryCount,
+			"evaluated_queries":       evaluatedQueries,
+			"mrr_at_10":               meanMRRAt10,
+			"recall_at_10":            meanRecallAt10,
 			"round1_total_seconds":    round1Total.Seconds(),
 			"round2_total_seconds":    round2Total.Seconds(),
 			"round3_total_seconds":    round3Total.Seconds(),
