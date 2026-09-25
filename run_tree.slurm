@@ -67,7 +67,7 @@ max_q_val=${MAX_Q_ARR[$task_id]}
 embed_val=192
 
 BINARY="${ROOT_DIR}/bm25-search"
-OUT_DIR="/scratch/dblackle/results/tree_grid_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k${k_val}"
+OUT_DIR="/scratch/dblackle/results/tree_grid_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k10"
 mkdir -p "$OUT_DIR"
 
 echo "========================================"
@@ -138,7 +138,7 @@ else
     exit 1
 fi
 
-LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k${k_val}.log"
+LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k10.log"
 
 SECONDS=0
 echo "Running tree search..."
@@ -149,7 +149,7 @@ echo "Running tree search..."
     --B "$B_val" \
     --r "$r_val" \
     --s "$s_val" \
-    --k "$k_val" \
+    --k 10 \
     --max-queries "$max_q_val" \
     --k1 0.9 \
     --b 0.4 \
