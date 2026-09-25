@@ -7,30 +7,53 @@
 #SBATCH --mem=120G
 #SBATCH --time=0-13:30:00
 #SBATCH --constraint=amd
-#SBATCH --array=0-9
-# SBATCH --output=logs/Tree_%A_%a.out
+#SBATCH --array=0-959
+#SBATCH --output=logs/Tree_%A_%a.out
 #SBATCH --error=logs/Tree_%A_%a.err
 
 set -euo pipefail
-ROOT_DIR="$SLURM_SUBMIT_DIR"
+ROOT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 cd "$ROOT_DIR"
 
-module --quiet purge
-module load hosts/hopper
-module load gnu9/9.3.0
+#module --quiet purge
+#module load hosts/hopper
+#module load gnu9/9.3.0
 export PATH=$PATH:/usr/local/go/bin
 
 
-DATA_ARR=("msmarco" "msmarco" "msmarco" "msmarco" "msmarco" "scifact" "scifact" "scifact" "scifact" "scifact")
+DATA_ARR=(); L_ARR=(); KCAND_ARR=(); QWORDS_ARR=(); B_ARR=(); R_ARR=(); S_ARR=(); MAX_Q_ARR=()
 
-L_ARR=(100 50 200 400 400 10 10 20 20 80)
-KCAND_ARR=(128 64 128 256 256 10 10 20 10 40)
-QWORDS_ARR=(6 4 6 8 8 12 12 12 16 12)
-B_ARR=(64 64 64 16 64 8 16 32 16 32)
-S_ARR=(8 16 16 8 4 2 4 2 4 2)
-R_ARR=(128 128 128 128 128 128 128 128 128 128)
-MAX_Q_ARR=(6980 6980 6980 6980 6980 300 300 300 300 300)
-EMBED_ARR=(192 192 192 192 192 192 192 192 192 192)
+# Helper function to generate the grid for one dataset
+add_tree_ablations() {
+    local d=$1 k_cand=$2 max_q=$3 B r s q W
+    for B in $4; do
+        for r in $5; do
+            for s in $6; do
+                for q in $7; do
+                    for W in $8; do
+                        DATA_ARR+=("$d"); B_ARR+=("$B"); R_ARR+=("$r"); S_ARR+=("$s")
+                        QWORDS_ARR+=("$q"); L_ARR+=("$W"); KCAND_ARR+=("$k_cand"); MAX_Q_ARR+=("$max_q")
+                    done
+                done
+            done
+        done
+    done
+}
+
+DATASET="${DATASET:?set DATASET to msmarco or scifact}"
+#                                    k_cand max_q  B              r               s        q*          W
+if [[ "$DATASET" == "msmarco" ]]; then
+    add_tree_ablations "msmarco" 128 6980 "16 32 64"   "8 32 128"   "4 8 16" "2 4 6 8"   "50 100 200 400"
+elif [[ "$DATASET" == "scifact" ]]; then
+    add_tree_ablations "scifact" 20  300  "8 16 32 64" "4 8 32 128" "2 4 8"  "4 8 12 16" "5 10 20 40 80"
+else
+    echo "Unknown DATASET: $DATASET"; exit 1
+fi
+
+if [[ "${1:-}" == "--count" ]]; then
+    echo "${#DATA_ARR[@]} configs for ${DATASET} (use --array=0-$(( ${#DATA_ARR[@]} - 1 )))"
+    exit 0
+fi
 
 task_id=$SLURM_ARRAY_TASK_ID
 dataset=${DATA_ARR[$task_id]}
@@ -41,11 +64,10 @@ B_val=${B_ARR[$task_id]}
 r_val=${R_ARR[$task_id]}
 s_val=${S_ARR[$task_id]}
 max_q_val=${MAX_Q_ARR[$task_id]}
-embed_val=${EMBED_ARR[$task_id]}
-k_val=10
+embed_val=192
 
 BINARY="${ROOT_DIR}/bm25-search"
-OUT_DIR="/scratch/dblackle/results/tree_new_test_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_k${k_val}"
+OUT_DIR="/scratch/dblackle/results/tree_grid_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k${k_val}"
 mkdir -p "$OUT_DIR"
 
 echo "========================================"
@@ -88,7 +110,7 @@ elif [ "$dataset" == "scifact" ]; then
     ARTIFACT_DIR="${DATA_ROOT}/pir/B${B_val}_r${r_val}_s${s_val}"
     BLOCK_PERMS="${DATA_ROOT}/block_permutations.json"
 
-    CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}"
+    CACHE_DIR="${ROOT_DIR}/cuckoo_cache/scifact/B${B_val}_r${r_val}_s${s_val}/task_${SLURM_ARRAY_TASK_ID}"
     mkdir -p "$CACHE_DIR"
 
     LAYOUT_PATH="${ARTIFACT_DIR}/layout.json"
@@ -116,7 +138,7 @@ else
     exit 1
 fi
 
-LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_k${k_val}.log"
+LOG_FILE="${OUT_DIR}/run_go_${dataset}_b${B_val}_r${r_val}_s${s_val}_L${L_val}_q${q_words_val}_k${k_val}.log"
 
 SECONDS=0
 echo "Running tree search..."
